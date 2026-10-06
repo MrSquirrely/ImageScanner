@@ -1,0 +1,162 @@
+﻿<Window x:Class="ImageScanner.DatabaseViewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:ImageScanner.DatabaseViewer.ViewModels"
+        xmlns:local="clr-namespace:ImageScanner.DatabaseViewer"
+        mc:Ignorable="d"
+        Title="ImageScanner Catalog" Height="750" Width="1100"
+        WindowStartupLocation="CenterScreen">
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Grid>
+        <!-- Background Application Layout (Disabled & Grayed Out when disclaimer is active) -->
+        <Grid Margin="12" IsEnabled="{Binding IsAppEnabled}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Top Panel: Configuration and Scan Trigger -->
+            <Border Grid.Row="0" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="6" Padding="12" Background="#FAFAFA">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <Label Content="Target Directory Path" FontWeight="SemiBold" Padding="0,0,0,4"/>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Browse..." Width="70" Click="BrowseFolder_Click" 
+                                    AutomationProperties.Name="Browse for folder" Margin="4,0,0,0"/>
+                            <TextBox Text="{Binding ScanDirectory, UpdateSourceTrigger=PropertyChanged}" 
+                                     AutomationProperties.Name="Target Directory Path" Height="26"/>
+                        </DockPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="4,0,4,0">
+                        <Label Content="Database Name" FontWeight="SemiBold" Padding="0,0,0,4"/>
+                        <TextBox Text="{Binding DatabaseName, UpdateSourceTrigger=PropertyChanged}" Height="26"
+                                 AutomationProperties.Name="Database Name"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Margin="4,0,8,0">
+                        <Label Content="Password (Optional)" FontWeight="SemiBold" Padding="0,0,0,4"/>
+                        <PasswordBox x:Name="DbPasswordBox" PasswordChanged="DbPasswordBox_PasswordChanged" Height="26"
+                                     AutomationProperties.Name="Database Password"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="3" Content="Scan &amp; Index" Width="110" Height="26" Margin="4,20,4,0"
+                            Command="{Binding StartScanCommand}" FontWeight="Bold"
+                            AutomationProperties.Name="Start Image Scan"/>
+
+                    <Button Grid.Column="4" Content="Load Database" Width="100" Height="26" Margin="4,20,0,0"
+                            Command="{Binding LoadDatabaseCommand}"
+                            AutomationProperties.Name="Load existing database"/>
+                </Grid>
+            </Border>
+
+            <!-- Search and Filter Bar -->
+            <DockPanel Grid.Row="1" Margin="0,10,0,10">
+                <Label DockPanel.Dock="Left" Content="Filter Assets:" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" Height="26"
+                         AutomationProperties.Name="Search images by name"/>
+            </DockPanel>
+
+            <!-- Main Virtualized Image Grid -->
+            <ListBox Grid.Row="2" ItemsSource="{Binding Images}" 
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     VirtualizingStackPanel.VirtualizationMode="Recycling"
+                     AutomationProperties.Name="Image Record Gallery">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:ImageItemViewModel}">
+                        <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="6" Padding="6" Width="160" Background="White">
+                            <StackPanel>
+                                <Border Height="130" Background="#F0F0F0" CornerRadius="2">
+                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                </Border>
+                                <TextBlock Text="{Binding Record.FileName}" FontWeight="Bold" TextTrimming="CharacterEllipsis" Margin="0,6,0,2"/>
+                                <TextBlock Text="{Binding DisplayDimensions}" Foreground="#666666" FontSize="11"/>
+                                <TextBlock Text="{Binding DisplayFileSize}" Foreground="#888888" FontSize="10"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Status & Progress Footer -->
+            <StatusBar Grid.Row="3" Margin="0,8,0,0">
+                <StatusBarItem DockPanel.Dock="Left">
+                    <TextBlock Text="{Binding StatusMessage}" />
+                </StatusBarItem>
+                <StatusBarItem DockPanel.Dock="Right" HorizontalAlignment="Right" Width="220" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ProgressBar Value="{Binding ScanProgress}" Maximum="{Binding TotalFilesToScan}" Height="16" Width="200" />
+                </StatusBarItem>
+            </StatusBar>
+        </Grid>
+
+        <!-- Modal Grayout Scrim & Acknowledgment Dialog -->
+        <Grid Background="#B0151515" 
+              Visibility="{Binding IsDisclaimerVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              Panel.ZIndex="1000">
+            <Border Width="500" 
+                    Background="#FFFFFF" 
+                    BorderBrush="#BDBDBD" 
+                    BorderThickness="1" 
+                    CornerRadius="8" 
+                    Padding="24" 
+                    VerticalAlignment="Center" 
+                    HorizontalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="25" ShadowDepth="4" Opacity="0.35"/>
+                </Border.Effect>
+                <StackPanel>
+                    <TextBlock Text="TESTING BUILD NOTICE" 
+                               FontSize="16" 
+                               FontWeight="Bold" 
+                               Foreground="#D97706" 
+                               Margin="0,0,0,12"/>
+
+                    <TextBlock TextWrapping="Wrap" 
+                               FontSize="13" 
+                               LineHeight="20" 
+                               Foreground="#222222" 
+                               Margin="0,0,0,12">
+                        This application is strictly for testing purposes. While this testing utility is feature-complete for its scoped purpose, the main application will include vastly more features, expanded settings, and core workflow tools.
+                    </TextBlock>
+
+                    <TextBlock Text="By clicking below, you acknowledge and understand these limitations." 
+                               TextWrapping="Wrap" 
+                               FontSize="12" 
+                               FontStyle="Italic" 
+                               Foreground="#666666" 
+                               Margin="0,0,0,20"/>
+
+                    <Button Content="I Understand" 
+                            Command="{Binding AcknowledgeDisclaimerCommand}" 
+                            IsDefault="True"
+                            Height="34" 
+                            FontWeight="SemiBold" 
+                            Background="#2563EB"
+                            Foreground="#FFFFFF"
+                            AutomationProperties.Name="Acknowledge testing build disclaimer and proceed" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
