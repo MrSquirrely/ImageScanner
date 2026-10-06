@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ImageScanner.ConsoleApp/ImageScanner.ConsoleApp.csproj" />
+  <Project Path="ImageScanner.Core/ImageScanner.Core.csproj" />
+</Solution>
