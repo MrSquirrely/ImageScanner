@@ -12,4 +12,12 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EditorConfigFiles Remove="D:\Repos\ImageScanner\ImageScanner.Core\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="D:\Repos\ImageScanner\ImageScanner.Core\.editorconfig" />
+  </ItemGroup>
+
 </Project>

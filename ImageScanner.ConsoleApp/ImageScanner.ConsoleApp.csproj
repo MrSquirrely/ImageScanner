@@ -16,4 +16,12 @@
     <ProjectReference Include="..\ImageScanner.Core\ImageScanner.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EditorConfigFiles Remove="D:\Repos\ImageScanner\ImageScanner.ConsoleApp\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="D:\Repos\ImageScanner\ImageScanner.ConsoleApp\.editorconfig" />
+  </ItemGroup>
+
 </Project>
