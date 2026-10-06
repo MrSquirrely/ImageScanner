@@ -133,13 +133,9 @@ internal class Program {
                             }
                         });
 
-	                // Pause so the UI doesn't wipe immediately
-	                AnsiConsole.MarkupLine("\nPress [yellow]any key[/] to return to the menu...");
-	                while (Console.KeyAvailable) {
-		                Console.ReadKey(true);
-	                }
-	                Console.ReadKey(true);
-	                break;
+                    // Pause so the UI doesn't wipe immediately
+                    WaitForEnter();
+                    break;
 
                 case "Exit":
 	                SoundEffects.PlaySelect(); // Play the selection sound for picking "Exit"
@@ -296,11 +292,7 @@ internal class Program {
         }
 
         // Pause so the UI doesn't wipe immediately
-        AnsiConsole.MarkupLine("\nPress [yellow]any key[/] to return to the menu...");
-        while (Console.KeyAvailable) {
-	        Console.ReadKey(true);
-        }
-        Console.ReadKey(true);
+        WaitForEnter();
     }
     /// <summary>
     /// Runs a custom interactive menu in the console, allowing the user to navigate options using arrow keys and select an option with Enter. The selected option is returned as a string.
@@ -349,21 +341,21 @@ internal class Program {
                         lastBlink = DateTime.Now;
 
                         switch (keyInfo.Key) {
-	                        case ConsoleKey.UpArrow: {
-		                        SoundEffects.PlayMove();
-		                        selectedIndex--;
-		                        if (selectedIndex < 0) selectedIndex = options.Length - 1;
-		                        break;
-	                        }
-	                        case ConsoleKey.DownArrow: {
-		                        SoundEffects.PlayMove();
-		                        selectedIndex++;
-		                        if (selectedIndex >= options.Length) selectedIndex = 0;
-		                        break;
-	                        }
-	                        case ConsoleKey.Enter:
-		                        finalSelection = options[selectedIndex];
-		                        break;
+                            case ConsoleKey.UpArrow: {
+                                    SoundEffects.PlayMove();
+                                    selectedIndex--;
+                                    if (selectedIndex < 0) selectedIndex = options.Length - 1;
+                                    break;
+                                }
+                            case ConsoleKey.DownArrow: {
+                                    SoundEffects.PlayMove();
+                                    selectedIndex++;
+                                    if (selectedIndex >= options.Length) selectedIndex = 0;
+                                    break;
+                                }
+                            case ConsoleKey.Enter:
+                                finalSelection = options[selectedIndex];
+                                break;
                         }
                     }
                     else {
@@ -448,7 +440,22 @@ internal class Program {
                 }
             });
 
+
         Console.CursorVisible = true;
         return (finalSelection != null) && finalSelection.Value;
+    }
+
+    /// <summary>
+    /// Flushes the input buffer and halts execution until the user presses Enter.
+    /// </summary>
+    private static void WaitForEnter() {
+        AnsiConsole.MarkupLine("\nPress [yellow]Enter[/] to return to the menu...");
+
+        while (Console.KeyAvailable) {
+            Console.ReadKey(true);
+        }
+
+        while (Console.ReadKey(true).Key != ConsoleKey.Enter) {
+        }
     }
 }

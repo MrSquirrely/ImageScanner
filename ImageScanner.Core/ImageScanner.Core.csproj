@@ -4,7 +4,8 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<SixLaborsLicenseFile>D:\Repos\ImageScanner\sixlabors.lic</SixLaborsLicenseFile>
+		<SixLaborsLicenseFile Condition="Exists('..\sixlabors.lic')">..\sixlabors.lic</SixLaborsLicenseFile>
+		<SixLaborsLicenseFile Condition="Exists('sixlabors.lic')">sixlabors.lic</SixLaborsLicenseFile>
 		<UseImageSharp>true</UseImageSharp>
 	</PropertyGroup>
 

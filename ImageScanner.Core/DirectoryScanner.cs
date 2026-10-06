@@ -15,7 +15,7 @@ namespace ImageScanner.Core;
 /// <param name="databasePassword">The password for the LiteDB database.</param>
 public class DirectoryScanner(string databasePathValue, string rootDirectoryValue, IEnumerable<string>? ignoredFoldersValue = null, string? databasePassword = null) {
     private readonly HashSet<string> supportedExtensionsHashSet =
-        [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".svg", ".ico"];
+        [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".ico"];
     private readonly HashSet<string> ignoredFoldersHashSet =
         ignoredFoldersValue?.ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
     /// <summary>
@@ -64,18 +64,20 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
 
         using LiteDatabase liteDatabase = new(connectionString);
         ILiteCollection<ImageRecord> collection = liteDatabase.GetCollection<ImageRecord>("images");
-        collection.EnsureIndex(x => x.FilePath, true);
+        collection.EnsureIndex(record => record.FilePath, true);
+        collection.EnsureIndex(record => record.Category);
+        collection.EnsureIndex(record => record.Tags);
 
+        // Pre-populate existing records using normalized full paths as dictionary keys
         Dictionary<string, ImageRecord> unverifiedRecords = new(StringComparer.OrdinalIgnoreCase);
         foreach (ImageRecord existingRecord in collection.FindAll()) {
-            if (existingRecord.FilePath != null) {
-                unverifiedRecords[existingRecord.FilePath] = existingRecord;
+            if (string.IsNullOrEmpty(existingRecord.FilePath)) {
+                continue;
             }
+
+            string normalizedExistingPath = Path.GetFullPath(existingRecord.FilePath);
+            unverifiedRecords[normalizedExistingPath] = existingRecord;
         }
-        HashSet<string> existingPaths = new(
-                collection.Query().Select(x => x.FilePath).ToEnumerable()!,
-                StringComparer.OrdinalIgnoreCase
-            );
 
         int processedCount = 0;
         List<ImageRecord> insertBatch = [];
@@ -87,43 +89,50 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
             AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System
         };
 
-        FileSystemEnumerable<string> enumerable = new(rootDirectoryValue, (ref entry) => entry.ToFullPath(), options) {
-            ShouldIncludePredicate = (ref entry) => !entry.IsDirectory,
-            ShouldRecursePredicate = (ref entry) => !ignoredFoldersHashSet.Contains(entry.FileName.ToString())
+        FileSystemEnumerable<string> enumerable = new(rootDirectoryValue, (ref FileSystemEntry entry) => entry.ToFullPath(), options) {
+            ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory,
+            ShouldRecursePredicate = (ref FileSystemEntry entry) => !ignoredFoldersHashSet.Contains(entry.FileName.ToString())
         };
 
-        foreach (string filePath in enumerable) {
-            if (unverifiedRecords.Remove(filePath)) {
-                continue;
-            }
-
-            if (existingPaths.Contains(filePath)) {
-                continue;
-            }
-            string extension = Path.GetExtension(filePath).ToLowerInvariant();
-
+        foreach (string rawFilePath in enumerable) {
+            string extension = Path.GetExtension(rawFilePath).ToLowerInvariant();
             if (!supportedExtensionsHashSet.Contains(extension)) {
                 continue;
             }
 
-            FileInfo fileInfo = new(filePath);
+            // Normalize the file path to ensure identical dictionary matching
+            string normalizedPath = Path.GetFullPath(rawFilePath);
+            FileInfo fileInfo = new(normalizedPath);
             bool isUpdate = false;
             ImageRecord record;
 
-            if (unverifiedRecords.Remove(filePath, out ImageRecord? existingRecord)) {
-                if ((fileInfo.LastWriteTimeUtc <= existingRecord.LastModified) && (fileInfo.Length == existingRecord.FileSize)) {
+            if (unverifiedRecords.Remove(normalizedPath, out ImageRecord? existingRecord)) {
+                // Tolerate sub-millisecond BSON serialization truncation
+                TimeSpan timeDifference = (fileInfo.LastWriteTimeUtc - existingRecord.LastModified).Duration();
+                bool metadataUnchanged = timeDifference < TimeSpan.FromSeconds(1)
+                                         && fileInfo.Length == existingRecord.FileSize;
+
+                bool thumbnailSatisfied = !generateThumbnails
+                                          || !string.IsNullOrEmpty(existingRecord.ThumbnailId);
+
+                // Skip files that have not changed and already meet thumbnail requirements
+                if (metadataUnchanged && thumbnailSatisfied) {
+                    processedCount++;
+                    progress?.Report(processedCount);
                     continue;
                 }
 
                 isUpdate = true;
                 record = existingRecord;
+
+                // Remove existing thumbnail only if regenerating it
                 if (generateThumbnails && !string.IsNullOrEmpty(record.ThumbnailId)) {
                     liteDatabase.FileStorage.Delete(record.ThumbnailId);
                     record.ThumbnailId = null;
                 }
             }
             else {
-                record = new ImageRecord() { FilePath = fileInfo.FullName };
+                record = new ImageRecord { FilePath = normalizedPath };
             }
 
             record.FileName = fileInfo.Name;
@@ -131,10 +140,12 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
             record.FileSize = fileInfo.Length;
             record.LastModified = fileInfo.LastWriteTimeUtc;
             record.DateScanned = DateTime.UtcNow;
+            record.Category = string.Empty;
+            record.Tags = [];
 
             try {
                 if (generateThumbnails) {
-                    using Image image = Image.Load(filePath);
+                    using Image image = Image.Load(normalizedPath);
 
                     record.Width = image.Width;
                     record.Height = image.Height;
@@ -146,7 +157,7 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
                         Mode = ResizeMode.Max
                     };
 
-                    image.Mutate(x => x.Resize(resizeOptions));
+                    image.Mutate(operation => operation.Resize(resizeOptions));
 
                     using MemoryStream thumbnailStream = new();
                     image.SaveAsWebp(thumbnailStream);
@@ -157,17 +168,19 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
                     record.ThumbnailId = thumbnailId;
                 }
                 else {
-                    ImageInfo imageInfo = Image.Identify(filePath);
+                    ImageInfo imageInfo = Image.Identify(normalizedPath);
                     record.Width = imageInfo.Width;
                     record.Height = imageInfo.Height;
                     ExtractExifData(imageInfo.Metadata.ExifProfile, record);
                 }
             }
             catch (UnknownImageFormatException) {
-                // File extension matched, but the internal header is not a valid image
+                // Skip unparseable formats (e.g., corrupt headers or vector files)
+                continue;
             }
             catch (Exception) {
-                // Catch-all for locked files or corrupted headers so the scan continues
+                // Skip locked files or unreadable files so the batch continues
+                continue;
             }
 
             if (isUpdate) {
@@ -197,9 +210,8 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
             collection.Update(updateBatch);
         }
 
-
+        // Any records left in unverifiedRecords no longer exist on disk
         foreach (ImageRecord deletedRecord in unverifiedRecords.Values) {
-
             if (!string.IsNullOrEmpty(deletedRecord.ThumbnailId)) {
                 liteDatabase.FileStorage.Delete(deletedRecord.ThumbnailId);
             }

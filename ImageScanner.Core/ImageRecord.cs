@@ -13,9 +13,12 @@ public class ImageRecord {
     public DateTime LastModified { get; set; } // Last modified date of the image file
     public int Width { get; set; } // Width of the image in pixels
     public int Height { get; set; } // Height of the image in pixels
+    public string? Category { get; set; }
+    public string[]? Tags { get; set; }
+
+    // EXIF metadata properties
     public string? CameraMaker { get; set; } // Maker of the camera used to take the image
     public string? CameraModel { get; set; } // Model of the camera used to take the image
     public string? ThumbnailId { get; set; } // ID of the thumbnail image stored in LiteDB's FileStorage
-
 
 }
