@@ -7,14 +7,17 @@ namespace ImageScanner.ConsoleApp;
 /// A static class that provides methods to securely save and load a password using Windows Data Protection API (DPAPI).
 /// </summary>
 public static class SecureVault {
-
-    private const string KeyFile = "vault.key"; // The file where the encrypted password will be stored
+    private static readonly string VaultDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ImageScanner");
+    private static readonly string KeyFile = Path.Combine(VaultDirectory, "vault.key"); // The file where the encrypted password will be stored
 
     /// <summary>
     /// Saves the provided password securely by encrypting it and writing it to a file.
     /// </summary>
     /// <param name="password">The password to save.</param>
     public static void SavePassword(string password) {
+        if (!Directory.Exists(VaultDirectory)) {
+            Directory.CreateDirectory(VaultDirectory);
+        }
         byte[] rawBytes = Encoding.UTF8.GetBytes(password); // Convert the password to bytes
         byte[] encryptedBytes = ProtectedData.Protect(rawBytes, null, DataProtectionScope.CurrentUser); // Encrypt the password using DPAPI
         File.WriteAllBytes(KeyFile, encryptedBytes); // Write the encrypted password to the file

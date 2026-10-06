@@ -2,9 +2,7 @@
 
 using LiteDB;
 
-using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using SixLabors.ImageSharp.Processing;
 
 namespace ImageScanner.Core;
 
