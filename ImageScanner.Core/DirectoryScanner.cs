@@ -54,7 +54,8 @@ public class DirectoryScanner(string databasePathValue, string rootDirectoryValu
         string fullDbPath = Path.Combine(rootDirectoryValue, dbFileName);
 
         ConnectionString connectionString = new() {
-            Filename = fullDbPath
+            Filename = fullDbPath,
+            Connection = ConnectionType.Shared
         };
 
         if (!string.IsNullOrWhiteSpace(databasePassword)) {

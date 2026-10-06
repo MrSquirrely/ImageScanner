@@ -45,7 +45,7 @@ internal class Program {
 
         DrawHeader(folderToScan, "", "", "");
         AnsiConsole.MarkupLine("[dim italic]Note: Scanning tens of thousands of images may take several minutes.[/]\n");
-        string dbPath = AnsiConsole.Ask<string>("Enter the [green]database name[/] (default: ImageDatabase):", "ImageDatabase");
+        string dbPath = Path.GetFileName(AnsiConsole.Ask<string>("Enter the [green]database name[/] (default: ImageDatabase):", "ImageDatabase"));
 
         DrawHeader(folderToScan, dbPath, "", "");
         string pwdStatus;
@@ -438,7 +438,7 @@ internal class Program {
 	                        }
 	                        case ConsoleKey.Enter:
 		                        SoundEffects.PlaySelect();
-		                        finalSelection = (selectedIndex == 0); // 0 is "Yes", 1 is "No"
+		                        finalSelection = selectedIndex == 0; // 0 is "Yes", 1 is "No"
 		                        break;
                         }
                     }
