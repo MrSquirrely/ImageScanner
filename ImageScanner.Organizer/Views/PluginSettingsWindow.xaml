@@ -1,0 +1,36 @@
+<hc:Window x:Class="ImageScanner.Organizer.Views.PluginSettingsWindow"
+           xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+           xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+           xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+           xmlns:hc="https://handyorg.github.io/handycontrol"
+           xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
+           mc:Ignorable="d"
+           d:DataContext="{d:DesignInstance vm:PluginSettingsViewModel}"
+           Title="{Binding Title}" Width="560" Height="640" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+           Background="{DynamicResource RegionBrush}">
+    <DockPanel>
+        <!-- Header: icon, name, description -->
+        <Border DockPanel.Dock="Top" Padding="20,16" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <ContentPresenter DockPanel.Dock="Left" Content="{Binding Info}" ContentTemplate="{StaticResource PluginIconTemplate}" Margin="0,0,14,0" VerticalAlignment="Top" />
+                <StackPanel>
+                    <TextBlock Text="{Binding Info.Plugin.Name}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Info.Plugin.Description}" TextWrapping="Wrap" Margin="0,4,0,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="16,10" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Style="{StaticResource ButtonPrimary}" Content="Save" MinWidth="90" IsDefault="True" Click="Save_Click" />
+                <Button Content="Cancel" MinWidth="90" Margin="8,0,0,0" IsCancel="True" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl Margin="20,8,20,16" ItemsSource="{Binding Settings}" ItemTemplate="{StaticResource PluginSettingTemplate}"
+                          AutomationProperties.Name="Plugin settings" />
+        </ScrollViewer>
+    </DockPanel>
+</hc:Window>

@@ -25,6 +25,57 @@ The terminal-based user interface and application entry point.
 * `SecureVault.cs`: Security and credential management.
 * `SoundEffects.cs`: Asynchronous audio feedback system.
 
+### 3. PixShelf (`ImageScanner.Organizer`, WPF + HandyControls)
+**PixShelf** is a desktop image organizer built on the `ImageScanner.Core.Library` catalog, using the [HandyControls](https://www.nuget.org/packages/HandyControls) control library. Import, Rescan, AI tag and the Tools menu sit in the title bar, with Settings at its right.
+* **Import** a folder or a whole drive. Rescans skip unchanged files, refresh changed ones, drop deleted ones and never lose your tags.
+* **Search** with free text plus filters: `tag:beach -tag:people artist:"stanley lau" cat:Wallpapers comic:"Space Saga" ext:png folder:Downloads rating>=4 is:fav is:untagged is:pending is:comic is:noartist`. The search box suggests completions for the word you're typing: tags, artists, categories and the `is:` keywords.
+* **Tags, artists and categories** with rename/merge, bulk editing of multiple selected images, favorites and 0–5 star ratings. Artists have their own sidebar section and their own chips in the details panel.
+* **Comics**: folders of numbered pages (or folders named "Chapter 3", "Vol. 2", "#12"…) are grouped automatically; you can also group any selection by hand. The reader supports two-page spreads, right-to-left order, fit-to-width and page reordering. **Convert to category** (a comic's right-click menu, or the button next to *Read* on a page) puts every page in a new or existing category and removes the comic grouping unless you choose to keep it.
+* **AI tag suggestions** from a local vision model or Claude, on import or on demand. Suggestions are queued under *Needs AI review* where you accept them per tag or all at once, or they can be applied automatically.
+* **Artist detection**: file names from Danbooru/Gelbooru (`…_drawn_by_<artist>__…`) and DeviantArt (`…_by_<artist>_d1a2b3c`) give the artist directly. Otherwise the AI looks for a signature, watermark or credit in the image; it doesn't guess from style. Detected artists are suggestions like tags.
+* **Settings** are a PropertyGrid grouped by category; select a row to see what it does.
+* **Plugins**: see below.
+
+Run it with `dotnet run --project ImageScanner.Organizer`. On first launch a setup wizard picks the theme, library location, AI tagging, how images open (built-in viewer or the Windows default app) and which plugins to enable; rerun it from Settings or with `--first-run`. Pass `--library <file.db>` to open a different catalog for one session. Importing a whole drive asks for confirmation first, with an extra warning for the Windows system drive. Settings, the default library and per-plugin data live in `%LOCALAPPDATA%\ImageScanner\Organizer`.
+
+AI tagging comes from plugins; two ship with the app and are chosen in the setup wizard or under **Settings → General → AI tagging**:
+
+* **Local AI tagging** (`ImageScanner.Plugins.LocalTagger`, the default): runs a vision model on your PC through [KoboldCpp](https://github.com/LostRuins/koboldcpp), following the approach of [ImageIndexer](https://github.com/jabberjabberjabber/ImageIndexer). Free and private. Start KoboldCpp with a vision model (for example a Qwen 3.5 or Gemma 3 GGUF plus its mmproj vision projector; without the mmproj the model can't see images, and the plugin stops with an explanation instead of making up descriptions), or set the path to `koboldcpp.exe` and a `.kcpps` config or a `.gguf` model (its mmproj is picked up from the same folder if you don't choose one) in the plugin's settings so it starts on demand and stops when the app closes. Any OpenAI-compatible vision server also works (llama.cpp, LM Studio, Ollama at `http://localhost:11434`). Each image gets a tag prompt ("Write a list of booru-style tags for this image.", with one-click presets for e621 and Danbooru tags) and optionally a caption prompt; both are editable in the plugin's settings. Tags are cleaned up (underscores become spaces, at most four words, "x and y" split, optional singularizing).
+* **Claude AI tagging** (`ImageScanner.Plugins.Claude`): cloud tagging with Anthropic's Claude. Add an API key in the plugin's settings (stored encrypted with Windows DPAPI) or set `ANTHROPIC_API_KEY`. Each image is one paid request.
+
+
+### 4. Plugins
+Reference `ImageScanner.Plugins.Abstractions` and implement `IPlugin`. In `Initialize(IPluginHost host)` register any of:
+
+| Extension point | Shows up as |
+|---|---|
+| `ITagSuggestionProvider` | A tagging engine choice in Settings → General |
+| `IImageAction` | An item in the gallery's right-click menu |
+| `IImportProcessor` | A step that runs on every newly imported image |
+| `IPluginCommand` | An item in the Tools menu |
+
+Implement `IConfigurablePlugin` to get a generated settings form (text, secret, number, toggle, choice). A tagging plugin should also implement `ITagProviderPlugin` so the setup wizard can offer it, and throw `TagProviderException` (with `isConfigurationError: true` for problems like a bad key or a stopped server, which stop the batch). Plugins get the live `ImageLibrary`, the current selection, notifications and a private data folder through `IPluginHost`.
+
+Install a plugin by copying its build output to `Plugins\<PluginName>\<PluginName>.dll` next to the app or under `%LOCALAPPDATA%\ImageScanner\Organizer\Plugins`. Each plugin loads in its own `AssemblyLoadContext`, so it can ship its own dependencies. The bundled plugins are working examples. A plugin project imports `build\Plugin.targets`, which references the contracts and copies the build output (with its dependencies) into the app's Plugins folder; add a `ProjectReference` with `ReferenceOutputAssembly="false"` from the app so it is built with it.
+
+**Official vs third-party.** Plugin cards show an *Official* badge for plugins made by the PixShelf team and *Third-party* for everything else. A build step (`GenerateOfficialPluginHashes` in `ImageScanner.Organizer.csproj`) compiles the SHA-256 of each bundled plugin's DLL into the app, and a plugin counts as official only if its file matches one of those hashes. The name or author a plugin reports makes no difference, and a modified official DLL shows as third-party. Build the app after changing a bundled plugin so its new hash is recorded.
+
+**Marketplace.** *Settings → Marketplace* lists plugins shared in this repository's [GitHub Discussions](https://github.com/MrSquirrely/ImageScanner/discussions). Every Discussions category whose name ends in "Plugins" is a marketplace category and shows up as a filter:
+
+| Category | Slug | For |
+|---|---|---|
+| 🤖 AI Tagging Plugins | `ai-tagging-plugins` | `ITagSuggestionProvider` |
+| 🖼️ Image Action Plugins | `image-action-plugins` | `IImageAction` |
+| 📥 Import Plugins | `import-plugins` | `IImportProcessor` |
+| 🧰 Tool Plugins | `tool-plugins` | `IPluginCommand` |
+| 🧩 Other Plugins | `other-plugins` | anything else |
+
+Each category has a form in `.github/DISCUSSION_TEMPLATE/<slug>.yml` that asks for the plugin's name, ID, version, description, download URL (an HTTPS link to a .zip, such as a GitHub release asset), the zip's SHA-256 and optional source link. The app reads those fields, so keep the labels unchanged. To publish an update, edit the post's version, link and hash.
+
+Installing downloads the zip, refuses it unless the SHA-256 matches the post, and stages it in `%LOCALAPPDATA%\ImageScanner\Organizer\Plugins.pending`; it moves into `Plugins` the next time PixShelf starts, because loaded plugins keep their DLLs locked. A newer version in the post shows as *Update*. Posts by the repository owner, members and collaborators carry a *Team* badge, and plugins installed from them count as official. The app reads Discussions anonymously through the GitHub API (60 requests an hour) and caches the list for 10 minutes.
+
+A tagging plugin can return `TagSuggestion.Artists`; `TagSuggestionRequest.KnownArtist` carries the artist from the file name when the app already knows it, so the plugin can skip its own detection.
+
 ## Getting Started
 To run the application locally, ensure you have the .NET SDK installed for your environment.
 

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>ImageScanner.Plugins.LocalTagger</RootNamespace>
+	</PropertyGroup>
+
+	<Import Project="..\build\Plugin.targets" />
+
+</Project>

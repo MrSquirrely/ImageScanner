@@ -1,0 +1,70 @@
+# Listing form for the "Other Plugins" Discussions category. PixShelf's Marketplace tab reads these fields,
+# so keep the labels as they are (the app finds each value by its label).
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a PixShelf plugin that doesn't fit the other categories. It appears in the app's **Settings → Marketplace** tab.
+
+        Zip your plugin's build output (the folder that holds your plugin DLL and its dependencies), attach it to a
+        GitHub release or another permanent HTTPS link, and paste the zip's SHA-256 below. PixShelf refuses to
+        install a download whose hash doesn't match. Get it with `Get-FileHash YourPlugin.zip` in PowerShell.
+
+        To publish a new version, edit this post: update **Version**, **Download URL** and **SHA-256**.
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+      placeholder: Watermark Finder
+    validations:
+      required: true
+  - type: input
+    id: plugin-id
+    attributes:
+      label: Plugin ID
+      description: The `Id` your plugin class returns, so PixShelf can tell when it's already installed.
+      placeholder: yourname.watermark-finder
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What it does and anything it needs (an API key, another program …). The first paragraph is shown on the card.
+    validations:
+      required: true
+  - type: input
+    id: download
+    attributes:
+      label: Download URL
+      description: A direct HTTPS link to the .zip.
+      placeholder: https://github.com/you/your-plugin/releases/download/v1.0.0/WatermarkFinder.zip
+    validations:
+      required: true
+  - type: input
+    id: sha256
+    attributes:
+      label: SHA-256
+      description: The zip's SHA-256 hash (64 hexadecimal characters).
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source code
+      description: Optional, but people are much more likely to trust a plugin they can read.
+      placeholder: https://github.com/you/your-plugin
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Safety
+      options:
+        - label: The download contains only my plugin and its dependencies, and doesn't collect data without saying so above.
+          required: true

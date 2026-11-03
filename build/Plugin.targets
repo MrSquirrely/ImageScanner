@@ -1,0 +1,32 @@
+<!--
+  Shared setup for plugin projects. Import it at the end of a plugin .csproj:
+    <Import Project="..\build\Plugin.targets" />
+  After every build the plugin and its private dependencies are copied to
+  ImageScanner.Organizer\bin\<Configuration>\net10.0-windows\Plugins\<ProjectName>\ so F5 picks them up.
+-->
+<Project>
+
+	<PropertyGroup>
+		<!-- Puts NuGet dependencies in the output and writes a .deps.json the plugin load context can resolve -->
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<PluginOutputDir>$(MSBuildThisFileDirectory)..\ImageScanner.Organizer\bin\$(Configuration)\net10.0-windows\Plugins\$(MSBuildProjectName)\</PluginOutputDir>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Contracts are provided by the host at runtime; don't ship copies -->
+		<ProjectReference Include="$(MSBuildThisFileDirectory)..\ImageScanner.Plugins.Abstractions\ImageScanner.Plugins.Abstractions.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
+
+	<Target Name="CopyToOrganizerPlugins" AfterTargets="Build">
+		<ItemGroup>
+			<PluginFiles Include="$(OutDir)**\*.dll;$(OutDir)$(TargetName).pdb;$(OutDir)$(TargetName).deps.json" />
+			<!-- Assemblies the host already loads must come from the host, never from the plugin folder -->
+			<PluginFiles Remove="$(OutDir)ImageScanner.Core.dll;$(OutDir)ImageScanner.Plugins.Abstractions.dll;$(OutDir)LiteDB.dll;$(OutDir)SixLabors.ImageSharp.dll" />
+		</ItemGroup>
+		<Copy SourceFiles="@(PluginFiles)" DestinationFiles="@(PluginFiles->'$(PluginOutputDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+	</Target>
+
+</Project>

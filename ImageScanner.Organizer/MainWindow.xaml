@@ -1,0 +1,590 @@
+<hc:Window x:Class="ImageScanner.Organizer.MainWindow"
+           xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+           xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+           xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+           xmlns:hc="https://handyorg.github.io/handycontrol"
+           xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
+           xmlns:controls="clr-namespace:ImageScanner.Organizer.Controls"
+           mc:Ignorable="d"
+           d:DataContext="{d:DesignInstance vm:MainViewModel}"
+           Title="PixShelf" Width="1440" Height="880" NonClientAreaHeight="44" Icon="/Assets/PixShelf.ico" MinWidth="980" MinHeight="600"
+           WindowStartupLocation="CenterScreen"
+           Background="{DynamicResource RegionBrush}">
+
+    <!-- Title bar: main actions on the left, settings on the right (next to the window buttons) -->
+    <hc:Window.NonClientAreaContent>
+        <DockPanel LastChildFill="False">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                <Button Style="{StaticResource ButtonPrimary}" Height="28" Padding="10,0" Command="{Binding ImportCommand}" ToolTip="Scan a folder or drive (Ctrl+I)"
+                        AutomationProperties.Name="Import folder or drive">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource IconText}" Text="&#xE8DA;" Margin="0,0,6,0" />
+                        <TextBlock Text="Import" />
+                    </StackPanel>
+                </Button>
+                <Button Margin="6,0,0,0" Height="28" Padding="10,0" Command="{Binding RescanAllCommand}" ToolTip="Rescan every imported folder for new, changed or deleted files"
+                        AutomationProperties.Name="Rescan all folders">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource IconText}" Text="&#xE72C;" Margin="0,0,6,0" />
+                        <TextBlock Text="Rescan" />
+                    </StackPanel>
+                </Button>
+                <Button Margin="6,0,0,0" Height="28" Padding="10,0" Command="{Binding SuggestTagsCommand}" ToolTip="Ask AI to suggest tags for the selected images (Ctrl+T)"
+                        AutomationProperties.Name="Suggest tags with AI for selection">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource IconText}" Text="&#xE945;" Margin="0,0,6,0" />
+                        <TextBlock Text="AI tag" />
+                    </StackPanel>
+                </Button>
+                <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                    <MenuItem x:Name="ToolsMenu" Header="Tools ▾" SubmenuOpened="ToolsMenu_SubmenuOpened" AutomationProperties.Name="Tools and plugins menu">
+                        <MenuItem Header="placeholder" />
+                    </MenuItem>
+                </Menu>
+            </StackPanel>
+            <Button DockPanel.Dock="Right" Width="40" Height="32" Padding="0" Margin="0,0,6,0" Background="Transparent" BorderThickness="0"
+                    VerticalAlignment="Center" Command="{Binding OpenSettingsCommand}"
+                    ToolTip="Settings, AI and plugins" AutomationProperties.Name="Settings">
+                <TextBlock Style="{StaticResource IconText}" Text="&#xE713;" FontSize="16" />
+            </Button>
+        </DockPanel>
+    </hc:Window.NonClientAreaContent>
+
+    <hc:Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="I" Command="{Binding ImportCommand}" />
+        <KeyBinding Modifiers="Control" Key="F" Command="{x:Static ApplicationCommands.Find}" />
+        <KeyBinding Modifiers="Control" Key="D" Command="{Binding ToggleFavoriteCommand}" />
+        <KeyBinding Modifiers="Control" Key="T" Command="{Binding SuggestTagsCommand}" />
+        <KeyBinding Modifiers="Control" Key="G" Command="{Binding GroupAsComicCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
+    </hc:Window.InputBindings>
+    <hc:Window.CommandBindings>
+        <CommandBinding Command="{x:Static ApplicationCommands.Find}" Executed="FocusSearch_Executed" />
+    </hc:Window.CommandBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Search, sort and thumbnail size (the main actions live in the title bar) -->
+        <Border Grid.Row="0" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,8">
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock Text="Sort" VerticalAlignment="Center" Margin="12,0,6,0" />
+                    <ComboBox Width="130" ItemsSource="{Binding Sorts}" SelectedItem="{Binding SortBy}" AutomationProperties.Name="Sort images by" />
+                    <TextBlock Style="{StaticResource IconText}" Text="&#xE8B9;" Margin="12,0,6,0" ToolTip="Thumbnail size" />
+                    <Slider Width="110" Minimum="90" Maximum="320" Value="{Binding TileSize}" VerticalAlignment="Center"
+                            AutomationProperties.Name="Thumbnail size" />
+                </StackPanel>
+
+                <!-- Suggests tags, artists, categories and search keywords for the word being typed -->
+                <Grid MaxWidth="720" HorizontalAlignment="Stretch">
+                    <hc:AutoCompleteTextBox x:Name="SearchBox"
+                                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                            ItemsSource="{Binding SearchSuggestions}"
+                                            AutomationProperties.Name="Search images" />
+                    <!-- AutoCompleteTextBox has no placeholder of its own -->
+                    <TextBlock Margin="10,0,30,0" VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource ThirdlyTextBrush}"
+                               Text="Search…  e.g.  sunset tag:beach artist:&quot;stanley lau&quot; -tag:people is:fav rating&gt;=4">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding SearchText}" Value="" />
+                                            <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <!-- Body -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250" MinWidth="180" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="330" MinWidth="260" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <Grid Grid.Column="0" Background="{DynamicResource SecondaryRegionBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="LIBRARY" />
+                    <ListBox ItemsSource="{Binding QuickFilters}" SelectedItem="{Binding SelectedQuickFilter}" BorderThickness="0" Background="Transparent"
+                             AutomationProperties.Name="Library views">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:QuickFilter}">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource IconText}" Text="{Binding Icon}" Margin="0,0,10,0" />
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Count, StringFormat=N0}" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                    <TextBlock Text="{Binding Name}" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                </StackPanel>
+
+                <DockPanel Grid.Row="1">
+                    <Button DockPanel.Dock="Right" Margin="0,8,6,0" Padding="4" Height="24" Width="28" Background="Transparent" BorderThickness="0" Command="{Binding AddCategoryCommand}"
+                            ToolTip="New category" AutomationProperties.Name="Add category">
+                        <TextBlock Style="{StaticResource IconText}" Text="&#xE710;" FontSize="12" />
+                    </Button>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="CATEGORIES" />
+                </DockPanel>
+                <ListBox Grid.Row="2" x:Name="CategoryList" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" MaxHeight="220"
+                         BorderThickness="0" Background="Transparent" AutomationProperties.Name="Categories"
+                         ContextMenuOpening="CategoryList_ContextMenuOpening">
+                    <ListBox.ContextMenu>
+                        <ContextMenu />
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Count, StringFormat=N0}" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+
+                <TextBlock Grid.Row="3" Style="{StaticResource SectionHeader}" Text="ARTISTS" />
+                <ListBox Grid.Row="4" x:Name="ArtistList" ItemsSource="{Binding Artists}" SelectedItem="{Binding SelectedArtist}" MaxHeight="180"
+                         BorderThickness="0" Background="Transparent" AutomationProperties.Name="Artists"
+                         ContextMenuOpening="ArtistList_ContextMenuOpening">
+                    <ListBox.ContextMenu>
+                        <ContextMenu />
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource IconText}" Text="&#xE790;" FontSize="12" Margin="0,0,8,0"
+                                           Foreground="{DynamicResource SecondaryTextBrush}" />
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Count, StringFormat=N0}" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+
+                <StackPanel Grid.Row="5">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="TAGS" />
+                    <hc:TextBox Margin="8,0,8,6" Text="{Binding TagFilter, UpdateSourceTrigger=PropertyChanged}"
+                                hc:InfoElement.Placeholder="Filter tags" hc:InfoElement.ShowClearButton="True"
+                                AutomationProperties.Name="Filter tags" />
+                </StackPanel>
+                <ListBox Grid.Row="6" x:Name="TagList" ItemsSource="{Binding Tags}" SelectedItem="{Binding SelectedTag}"
+                         BorderThickness="0" Background="Transparent" AutomationProperties.Name="Tags"
+                         VirtualizingPanel.IsVirtualizing="True" ContextMenuOpening="TagList_ContextMenuOpening">
+                    <ListBox.ContextMenu>
+                        <ContextMenu />
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Count, StringFormat=N0}" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </Grid>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" />
+
+            <!-- Gallery -->
+            <Grid Grid.Column="2">
+                <ListBox x:Name="Gallery" ItemsSource="{Binding Images}" SelectionMode="Extended" BorderThickness="0" Background="Transparent"
+                         Visibility="{Binding ShowComics, Converter={StaticResource InverseBoolToVisibility}}"
+                         ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Standard"
+                         SelectionChanged="Gallery_SelectionChanged" MouseDoubleClick="Gallery_MouseDoubleClick"
+                         KeyDown="Gallery_KeyDown" ContextMenuOpening="Gallery_ContextMenuOpening"
+                         AutomationProperties.Name="Image gallery">
+                    <ListBox.ContextMenu>
+                        <ContextMenu />
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <controls:VirtualizingWrapPanel ItemWidth="{Binding DataContext.TileSize, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                            ItemHeight="{Binding DataContext.TileHeight, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                            <Setter Property="Margin" Value="3" />
+                            <Setter Property="Padding" Value="4" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                            <Setter Property="ToolTip" Value="{Binding ToolTipText}" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding FileName}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ImageItemViewModel}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border CornerRadius="4" Background="{DynamicResource SecondaryRegionBrush}" ClipToBounds="True">
+                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                                </Border>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                                    <Border CornerRadius="8" Padding="4,2" Margin="2,0,0,0" Background="#CC7E57C2" ToolTip="AI suggestions waiting for review"
+                                            Visibility="{Binding HasPendingSuggestions, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Style="{StaticResource IconText}" Text="&#xE945;" FontSize="11" Foreground="White" />
+                                    </Border>
+                                    <Border CornerRadius="8" Padding="4,2" Margin="2,0,0,0" Background="#CC1E88E5" ToolTip="Comic page"
+                                            Visibility="{Binding IsComicPage, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Style="{StaticResource IconText}" Text="&#xE736;" FontSize="11" Foreground="White" />
+                                    </Border>
+                                    <Border CornerRadius="8" Padding="4,2" Margin="2,0,0,0" Background="#CCF9A825" ToolTip="Favorite"
+                                            Visibility="{Binding IsFavorite, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Style="{StaticResource IconText}" Text="&#xE735;" FontSize="11" Foreground="White" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="2,4,2,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ListBox x:Name="ComicList" ItemsSource="{Binding Comics}" BorderThickness="0" Background="Transparent"
+                         Visibility="{Binding ShowComics, Converter={StaticResource BoolToVisibility}}"
+                         ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         MouseDoubleClick="ComicList_MouseDoubleClick" ContextMenuOpening="ComicList_ContextMenuOpening"
+                         AutomationProperties.Name="Comics">
+                    <ListBox.ContextMenu>
+                        <ContextMenu />
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <controls:VirtualizingWrapPanel ItemWidth="190" ItemHeight="290" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                            <Setter Property="Margin" Value="4" />
+                            <Setter Property="Padding" Value="6" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ComicItemViewModel}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border CornerRadius="4" Background="{DynamicResource SecondaryRegionBrush}" ClipToBounds="True">
+                                    <Image Source="{Binding Cover}" Stretch="Uniform" />
+                                </Border>
+                                <TextBlock Grid.Row="1" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,6,0,0" ToolTip="{Binding Title}" />
+                                <TextBlock Grid.Row="2" Text="{Binding PageSummary}" Foreground="{DynamicResource SecondaryTextBrush}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Style="{StaticResource IconText}" Text="&#xE91B;" FontSize="48" HorizontalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <TextBlock Text="{Binding EmptyMessage}" Margin="0,12,0,0" FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" TextAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource BorderBrush}" />
+
+            <!-- Details -->
+            <ScrollViewer Grid.Column="4" VerticalScrollBarVisibility="Auto" Background="{DynamicResource SecondaryRegionBrush}">
+                <StackPanel Margin="14">
+                    <TextBlock Text="{Binding SelectionHeader}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+                    <StackPanel Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                        <Border Height="240" Margin="0,10,0,0" CornerRadius="6" Background="{DynamicResource RegionBrush}"
+                                Visibility="{Binding Current, Converter={StaticResource NullToVisibility}}"
+                                MouseLeftButtonDown="Preview_MouseLeftButtonDown" Cursor="Hand" ToolTip="Double-click to open">
+                            <Image Source="{Binding Preview}" Stretch="Uniform" Margin="4" />
+                        </Border>
+
+                        <StackPanel Visibility="{Binding Current, Converter={StaticResource NullToVisibility}}" Margin="0,8,0,0">
+                            <TextBox Text="{Binding Current.Model.FilePath, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0"
+                                     Background="Transparent" Foreground="{DynamicResource SecondaryTextBrush}" Padding="0" AutomationProperties.Name="File path" />
+                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource SecondaryTextBrush}">
+                                <Run Text="{Binding Current.Model.Dimensions, Mode=OneWay}" /> ·
+                                <Run Text="{Binding CurrentFileSize, Mode=OneWay}" /> ·
+                                <Run Text="{Binding Current.Model.LastModified, Mode=OneWay, StringFormat=d}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding Current.Model.CameraModel}" Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Visibility="{Binding Current.Model.CameraModel, Converter={StaticResource NullToVisibility}}" />
+                            <TextBlock Text="{Binding Current.Model.Description}" TextWrapping="Wrap" Margin="0,6,0,0" FontStyle="Italic"
+                                       Visibility="{Binding Current.Model.Description, Converter={StaticResource NullToVisibility}}" />
+                        </StackPanel>
+
+                        <Border Margin="0,10,0,0" Padding="8" CornerRadius="6" Background="{DynamicResource RegionBrush}"
+                                Visibility="{Binding CurrentComicTitle, Converter={StaticResource NullToVisibility}}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Read" Command="{Binding OpenCurrentInReaderCommand}" AutomationProperties.Name="Open in comic reader" />
+                                <Button DockPanel.Dock="Right" Margin="0,0,6,0" Padding="6,0" Command="{Binding ConvertCurrentComicToCategoryCommand}"
+                                        ToolTip="Put every page of this comic in a category" AutomationProperties.Name="Convert comic to category">
+                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE8B7;" />
+                                </Button>
+                                <TextBlock Text="{Binding CurrentComicTitle}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Command="{Binding ToggleFavoriteCommand}" ToolTip="Toggle favorite (Ctrl+D)">
+                                <!-- Outline star when not a favorite; filled gold star and "Favorited" when it is -->
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ButtonDefault}">
+                                        <Setter Property="AutomationProperties.Name" Value="Add to favorites" />
+                                        <Setter Property="Content">
+                                            <Setter.Value>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE734;" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Favorite" />
+                                                </StackPanel>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelectionFavorite}" Value="True">
+                                                <Setter Property="AutomationProperties.Name" Value="Remove from favorites" />
+                                                <Setter Property="Background" Value="#33F9A825" />
+                                                <Setter Property="BorderBrush" Value="#F9A825" />
+                                                <Setter Property="Content">
+                                                    <Setter.Value>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Style="{StaticResource IconText}" Text="&#xE735;" Margin="0,0,6,0" Foreground="#F9A825" />
+                                                            <TextBlock Text="Favorited" />
+                                                        </StackPanel>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <hc:Rate x:Name="RatingControl" Margin="12,0,0,0" Count="5" VerticalAlignment="Center" AllowClear="True"
+                                     Value="{Binding Current.Rating, Mode=OneWay}" ValueChanged="Rating_ValueChanged"
+                                     Foreground="#F9A825" Background="{DynamicResource SecondaryTextBrush}"
+                                     AutomationProperties.Name="Rating" />
+                            <!-- Rate colors: Foreground = filled stars (gold, like Favorited), Background = empty stars (the theme default is near-invisible) -->
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,16,0,4" Text="CATEGORY" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Set" Command="{Binding ApplyCategoryCommand}" AutomationProperties.Name="Apply category" />
+                            <ComboBox Style="{StaticResource ComboBoxExtend}" IsEditable="True" ItemsSource="{Binding AllCategoryNames}" Text="{Binding CategoryText, UpdateSourceTrigger=PropertyChanged}"
+                                      hc:InfoElement.Placeholder="Choose or type a category" AutomationProperties.Name="Category">
+                                <ComboBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding ApplyCategoryCommand}" />
+                                </ComboBox.InputBindings>
+                            </ComboBox>
+                        </DockPanel>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,16,0,4" Text="ARTISTS" />
+                        <ItemsControl ItemsSource="{Binding DetailArtists}" AutomationProperties.Name="Image artists">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,4,6,0" Padding="10,3,4,3" CornerRadius="12" Background="#00897B">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Style="{StaticResource IconText}" Text="&#xE790;" FontSize="11" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                            <TextBlock Text="{Binding}" Foreground="White" VerticalAlignment="Center" />
+                                            <Button Margin="4,0,0,0" Padding="4,0" MinHeight="0" Height="18" Background="Transparent" BorderThickness="0"
+                                                    Command="{Binding DataContext.RemoveArtistCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" ToolTip="Remove artist" AutomationProperties.Name="Remove artist">
+                                                <TextBlock Style="{StaticResource IconText}" Text="&#xE711;" FontSize="9" Foreground="White" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <DockPanel Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Add" Command="{Binding AddArtistCommand}" AutomationProperties.Name="Add artist" />
+                            <ComboBox Style="{StaticResource ComboBoxExtend}" IsEditable="True" ItemsSource="{Binding AllArtistNames}" Text="{Binding NewArtistText, UpdateSourceTrigger=PropertyChanged}"
+                                      hc:InfoElement.Placeholder="Add an artist" AutomationProperties.Name="New artist">
+                                <ComboBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding AddArtistCommand}" />
+                                </ComboBox.InputBindings>
+                            </ComboBox>
+                        </DockPanel>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,16,0,4" Text="TAGS" />
+                        <TextBlock Text="Tags shared by all selected images" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11"
+                                   Visibility="{Binding IsMultiSelection, Converter={StaticResource BoolToVisibility}}" />
+                        <ItemsControl ItemsSource="{Binding DetailTags}" AutomationProperties.Name="Image tags">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,4,6,0" Padding="10,3,4,3" CornerRadius="12" Background="{DynamicResource PrimaryBrush}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding}" Foreground="White" VerticalAlignment="Center" />
+                                            <Button Margin="4,0,0,0" Padding="4,0" MinHeight="0" Height="18" Background="Transparent" BorderThickness="0"
+                                                    Command="{Binding DataContext.RemoveTagCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" ToolTip="Remove tag" AutomationProperties.Name="Remove tag">
+                                                <TextBlock Style="{StaticResource IconText}" Text="&#xE711;" FontSize="9" Foreground="White" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <DockPanel Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Add" Command="{Binding AddTagCommand}" AutomationProperties.Name="Add tag" />
+                            <ComboBox Style="{StaticResource ComboBoxExtend}" IsEditable="True" ItemsSource="{Binding AllTagNames}" Text="{Binding NewTagText, UpdateSourceTrigger=PropertyChanged}"
+                                      hc:InfoElement.Placeholder="Add tags, comma separated" AutomationProperties.Name="New tag">
+                                <ComboBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding AddTagCommand}" />
+                                </ComboBox.InputBindings>
+                            </ComboBox>
+                        </DockPanel>
+
+                        <Button Margin="0,12,0,0" HorizontalAlignment="Stretch" Command="{Binding SuggestTagsCommand}" AutomationProperties.Name="Suggest tags with AI">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource IconText}" Text="&#xE945;" Margin="0,0,6,0" />
+                                <TextBlock Text="Suggest tags with AI" />
+                            </StackPanel>
+                        </Button>
+
+                        <Border Margin="0,10,0,0" Padding="10" CornerRadius="6" BorderThickness="1" BorderBrush="#7E57C2" Background="#147E57C2"
+                                Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" Text="AI suggestions — click a tag to accept it" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding SuggestedTags}" Margin="0,4,0,0" AutomationProperties.Name="Suggested tags">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Margin="0,4,6,0" Padding="8,2" Height="24" Content="{Binding}" ContentStringFormat="+ {0}"
+                                                    Command="{Binding DataContext.AcceptSuggestionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" AutomationProperties.Name="{Binding StringFormat=Accept tag {0}}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <ItemsControl ItemsSource="{Binding SuggestedArtists}" Margin="0,4,0,0" AutomationProperties.Name="Suggested artists">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Margin="0,4,6,0" Padding="8,2" Height="24" BorderBrush="#00897B"
+                                                    Command="{Binding DataContext.AcceptSuggestedArtistCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" AutomationProperties.Name="{Binding StringFormat=Accept artist {0}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE790;" FontSize="11" Margin="0,0,5,0" Foreground="#00897B" />
+                                                    <TextBlock Text="{Binding StringFormat=+ artist: {0}}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Margin="0,6,0,0" Visibility="{Binding SuggestedCategory, Converter={StaticResource NullToVisibility}}">
+                                    <Run Text="Category:" FontWeight="SemiBold" /> <Run Text="{Binding SuggestedCategory, Mode=OneWay}" />
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button Style="{StaticResource ButtonPrimary}" Content="Accept all" Command="{Binding AcceptAllSuggestionsCommand}" />
+                                    <Button Margin="6,0,0,0" Content="Dismiss" Command="{Binding RejectSuggestionsCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,16,0,4" Text="COMIC" />
+                        <WrapPanel>
+                            <Button Margin="0,0,6,6" Content="Group as comic…" Command="{Binding GroupAsComicCommand}" ToolTip="Ctrl+G" />
+                            <Button Margin="0,0,6,6" Content="Remove from comic" Command="{Binding RemoveFromComicCommand}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="10,4">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding JobText}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ProgressBar Width="220" Height="8" Value="{Binding JobProgress}" IsIndeterminate="{Binding JobIndeterminate}" Style="{StaticResource ProgressBarFlat}" />
+                    <Button Margin="10,0,0,0" Padding="8,0" Height="22" Content="Cancel" Command="{Binding CancelJobCommand}" AutomationProperties.Name="Cancel task" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,20,0" Visibility="{Binding IsAiBusy, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding AiJobText}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ProgressBar Width="160" Height="8" Value="{Binding AiJobProgress}" IsIndeterminate="{Binding AiJobIndeterminate}" Style="{StaticResource ProgressBarFlat}" />
+                    <Button Margin="10,0,0,0" Padding="8,0" Height="22" Content="Cancel" Command="{Binding CancelAiJobCommand}" AutomationProperties.Name="Cancel AI tagging" />
+                </StackPanel>
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" />
+            </DockPanel>
+        </Border>
+
+        <!-- Toast notifications -->
+        <ScrollViewer Grid.Row="0" Grid.RowSpan="3" HorizontalAlignment="Right" VerticalAlignment="Top" VerticalScrollBarVisibility="Hidden" Margin="0,50,10,10">
+            <StackPanel hc:Growl.GrowlParent="True" Margin="0,0,10,10" />
+        </ScrollViewer>
+    </Grid>
+</hc:Window>

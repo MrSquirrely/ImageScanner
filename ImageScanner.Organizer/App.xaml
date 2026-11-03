@@ -1,0 +1,195 @@
+<Application x:Class="ImageScanner.Organizer.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:ImageScanner.Organizer.Converters"
+             xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
+             xmlns:plugins="clr-namespace:ImageScanner.Organizer.Plugins"
+             xmlns:hc="https://handyorg.github.io/handycontrol"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- HandyControls: colors (light/dark, switched by App.ApplyTheme through ThemeManager) and control styles -->
+                <hc:ThemeResources />
+                <hc:Theme />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+            <conv:NullToVisibilityConverter x:Key="NullToVisibility" />
+            <conv:InverseBoolConverter x:Key="InverseBool" />
+            <conv:IndexToVisibilityConverter x:Key="IndexToVisibility" />
+            <conv:BoolRadioConverter x:Key="BoolRadio" />
+
+            <!-- Basic styles first: StaticResource lookups only see entries defined above them in this dictionary -->
+            <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+            <Style x:Key="IconText" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="SectionHeader" TargetType="TextBlock">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+                <Setter Property="Margin" Value="12,14,12,4" />
+            </Style>
+
+            <!-- HandyControl centers radio buttons by default; settings lists read better left-aligned -->
+            <Style x:Key="OptionRadio" TargetType="RadioButton" BasedOn="{StaticResource RadioButtonBaseStyle}">
+                <Setter Property="HorizontalAlignment" Value="Left" />
+            </Style>
+
+            <!-- Editor for one plugin setting (text, path, secret, toggle or choice); used by Settings and the first-run wizard -->
+            <DataTemplate x:Key="PluginSettingTemplate" DataType="{x:Type vm:PluginSettingViewModel}">
+                <StackPanel Margin="0,6,0,0">
+                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0"
+                             Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}"
+                             AutomationProperties.Name="{Binding Label}" />
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0" MinHeight="64" MaxHeight="160"
+                             AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
+                             Visibility="{Binding IsMultiline, Converter={StaticResource BoolToVisibility}}"
+                             AutomationProperties.Name="{Binding Label}" />
+                    <!-- One-click presets that fill the box above -->
+                    <WrapPanel Margin="0,6,0,0" Visibility="{Binding HasPresets, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Fill with:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                        <ItemsControl ItemsSource="{Binding Presets}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Label}" Margin="0,0,6,4" Padding="10,2" Height="26"
+                                            Command="{Binding DataContext.FillPresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" ToolTip="{Binding Value}"
+                                            AutomationProperties.Name="{Binding Label, StringFormat=Fill with {0}}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </WrapPanel>
+                    <DockPanel Margin="0,4,0,0" Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}">
+                        <Button DockPanel.Dock="Right" Margin="6,0,0,0" Command="{Binding BrowseCommand}"
+                                ToolTip="Browse for the file" AutomationProperties.Name="{Binding Label, StringFormat=Browse for {0}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource IconText}" Text="&#xE838;" Margin="0,0,6,0" />
+                                <TextBlock Text="Browse…" />
+                            </StackPanel>
+                        </Button>
+                        <!-- Still editable so a path can be pasted or tweaked -->
+                        <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label}" />
+                    </DockPanel>
+                    <hc:PasswordBox IsSafeEnabled="False" UnsafePassword="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    ShowEyeButton="True" Margin="0,4,0,0"
+                                    Visibility="{Binding IsSecret, Converter={StaticResource BoolToVisibility}}"
+                                    AutomationProperties.Name="{Binding Label}" />
+                    <ToggleButton Style="{StaticResource ToggleButtonSwitch}" HorizontalAlignment="Left" Margin="0,4,0,0"
+                                  IsChecked="{Binding BoolValue}"
+                                  Visibility="{Binding IsToggle, Converter={StaticResource BoolToVisibility}}"
+                                  AutomationProperties.Name="{Binding Label}" />
+                    <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Value}" Margin="0,4,0,0" Width="200" HorizontalAlignment="Left"
+                              Visibility="{Binding IsChoice, Converter={StaticResource BoolToVisibility}}"
+                              AutomationProperties.Name="{Binding Label}" />
+                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               Visibility="{Binding Description, Converter={StaticResource NullToVisibility}}" />
+                </StackPanel>
+            </DataTemplate>
+
+            <!-- A plugin's icon (font glyph or image) on a rounded tile; content is a PluginInfo -->
+            <DataTemplate x:Key="PluginIconTemplate" DataType="{x:Type plugins:PluginInfo}">
+                <Border Width="44" Height="44" CornerRadius="10" Background="{DynamicResource LightPrimaryBrush}">
+                    <Grid>
+                        <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="22"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryBrush}"
+                                   Visibility="{Binding IconGlyph, Converter={StaticResource NullToVisibility}}" />
+                        <Image Source="{Binding IconImage}" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"
+                               Visibility="{Binding IconImage, Converter={StaticResource NullToVisibility}}" />
+                    </Grid>
+                </Border>
+            </DataTemplate>
+
+            <!-- Plugin card: icon, name, short description, enable switch, settings button; used by Settings and the first-run wizard -->
+            <DataTemplate x:Key="PluginCardTemplate" DataType="{x:Type vm:PluginEntryViewModel}">
+                <Border Width="336" Height="168" Margin="0,0,10,10" Padding="14" CornerRadius="8" BorderThickness="1"
+                        BorderBrush="{DynamicResource BorderBrush}" Background="{DynamicResource SecondaryRegionBrush}"
+                        AutomationProperties.Name="{Binding Name}">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top">
+                            <ContentPresenter DockPanel.Dock="Left" Content="{Binding Info}" ContentTemplate="{StaticResource PluginIconTemplate}" Margin="0,0,12,0" />
+                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToggleButtonSwitch}" IsChecked="{Binding IsEnabled}" VerticalAlignment="Top"
+                                          ToolTip="Enable or disable this plugin"
+                                          AutomationProperties.Name="{Binding Name, StringFormat=Enable {0}}" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <!-- Official = built in, or byte-identical to a plugin bundled with this build -->
+                                    <Border Padding="6,1" CornerRadius="8" Background="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"
+                                            Visibility="{Binding IsOfficial, Converter={StaticResource BoolToVisibility}}"
+                                            ToolTip="Made by the PixShelf team. Verified: this file is identical to the one shipped with the app."
+                                            AutomationProperties.Name="Official plugin">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Style="{StaticResource IconText}" Text="&#xE73E;" FontSize="9" Foreground="White" Margin="0,0,4,0" />
+                                            <TextBlock Text="Official" FontSize="10" Foreground="White" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Padding="6,1" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource WarningBrush}" VerticalAlignment="Center"
+                                            Visibility="{Binding IsOfficial, Converter={StaticResource InverseBoolToVisibility}}"
+                                            ToolTip="Not made by the PixShelf team (or modified). Plugins run with full access to your PC, so only use ones you trust."
+                                            AutomationProperties.Name="Third-party plugin">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Style="{StaticResource IconText}" Text="&#xE7BA;" FontSize="9" Foreground="{DynamicResource WarningBrush}" Margin="0,0,4,0" />
+                                            <TextBlock Text="Third-party" FontSize="10" Foreground="{DynamicResource WarningBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="{Binding Byline}" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <DockPanel DockPanel.Dock="Bottom" LastChildFill="False">
+                            <Button DockPanel.Dock="Left" Command="{Binding OpenSettingsCommand}" Padding="10,4"
+                                    ToolTip="{Binding Name, StringFormat={}{0} settings}" AutomationProperties.Name="{Binding Name, StringFormat={}{0} settings}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE713;" Margin="0,0,6,0" />
+                                    <TextBlock Text="Settings" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Text="Enabled"
+                                       Foreground="{DynamicResource SuccessBrush}"
+                                       Visibility="{Binding IsEnabled, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Text="Disabled"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Visibility="{Binding IsEnabled, Converter={StaticResource InverseBoolToVisibility}}" />
+                        </DockPanel>
+
+                        <StackPanel Margin="0,10,0,8">
+                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="40"
+                                       ToolTip="{Binding Description}" />
+                            <TextBlock Text="{Binding Info.Error, StringFormat=Failed to load: {0}}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                       Foreground="{DynamicResource DangerBrush}" TextTrimming="CharacterEllipsis"
+                                       Visibility="{Binding Info.Error, Converter={StaticResource NullToVisibility}}" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>            </DataTemplate>
+
+            <!-- Points first-run users at the marketplace (Settings → Marketplace) -->
+            <DataTemplate x:Key="MarketplaceTeaser">
+                <Border Padding="16" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" Background="{DynamicResource SecondaryRegionBrush}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE719;" FontSize="28" Margin="0,0,14,0"
+                                   VerticalAlignment="Center" Foreground="{DynamicResource PrimaryBrush}" />
+                        <StackPanel>
+                            <TextBlock Text="Plugin marketplace" FontWeight="SemiBold" FontSize="14" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Text="Find more plugins under Settings → Marketplace once setup is done. They're shared in the PixShelf GitHub Discussions, sorted into categories such as AI tagging, image actions and tools." />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
