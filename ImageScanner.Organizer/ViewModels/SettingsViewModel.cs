@@ -120,6 +120,9 @@ public partial class PluginSettingsViewModel(PluginInfo info, PluginManager mana
             ? [.. configurable.Settings.Select(setting => new PluginSettingViewModel(setting, manager.GetSetting(info.Plugin, setting.Key)))]
             : [];
 
+    /// <summary>What the dialog's PropertyGrid edits: the same setting objects as <see cref="Settings"/>.</summary>
+    public PluginSettingsSheet Sheet => field ??= new PluginSettingsSheet(Settings);
+
     public void Save() {
         if (draft != null) {
             for (int i = 0; i < draft.Count; i++) {

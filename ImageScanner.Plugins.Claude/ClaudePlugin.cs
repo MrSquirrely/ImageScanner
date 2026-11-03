@@ -21,10 +21,10 @@ public sealed class ClaudePlugin : IPlugin, IConfigurablePlugin, ITagProviderPlu
 
     public IReadOnlyList<PluginSetting> Settings { get; } = [
         new(ApiKeySetting, "Anthropic API key", PluginSettingKind.Secret,
-            Description: "Stored encrypted for your Windows account. Leave empty to use the ANTHROPIC_API_KEY environment variable."),
-        new(ModelSetting, "Claude model", PluginSettingKind.Text, DefaultModel),
+            Description: "Stored encrypted for your Windows account. Leave empty to use the ANTHROPIC_API_KEY environment variable.") { Category = "Account" },
+        new(ModelSetting, "Claude model", PluginSettingKind.Text, DefaultModel) { Category = "Model" },
         new(EffortSetting, "Effort", PluginSettingKind.Choice, "low",
-            Description: "Higher effort can give more thorough tags but costs more per image.", Choices: ["low", "medium", "high"])
+            Description: "Higher effort can give more thorough tags but costs more per image.", Choices: ["low", "medium", "high"]) { Category = "Model" }
     ];
 
     public void Initialize(IPluginHost host) => host.RegisterTagSuggestionProvider(new ClaudeTagProvider(this, host));

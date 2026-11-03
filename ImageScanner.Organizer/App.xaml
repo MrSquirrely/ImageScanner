@@ -40,14 +40,14 @@
                 <Setter Property="HorizontalAlignment" Value="Left" />
             </Style>
 
-            <!-- Editor for one plugin setting (text, path, secret, toggle or choice); used by Settings and the first-run wizard -->
-            <DataTemplate x:Key="PluginSettingTemplate" DataType="{x:Type vm:PluginSettingViewModel}">
-                <StackPanel Margin="0,6,0,0">
-                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0"
+            <!-- The editor for one plugin setting (text, multi-line with presets, path, secret, toggle or choice), without its
+                 label: the plugin settings PropertyGrid shows labels itself (see PluginSettingPropertyEditor) -->
+            <DataTemplate x:Key="PluginSettingEditorTemplate" DataType="{x:Type vm:PluginSettingViewModel}">
+                <StackPanel>
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                              Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}"
                              AutomationProperties.Name="{Binding Label}" />
-                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0" MinHeight="64" MaxHeight="160"
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" MinHeight="64" MaxHeight="160"
                              AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
                              Visibility="{Binding IsMultiline, Converter={StaticResource BoolToVisibility}}"
                              AutomationProperties.Name="{Binding Label}" />
@@ -70,7 +70,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </WrapPanel>
-                    <DockPanel Margin="0,4,0,0" Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}">
+                    <DockPanel Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}">
                         <Button DockPanel.Dock="Right" Margin="6,0,0,0" Command="{Binding BrowseCommand}"
                                 ToolTip="Browse for the file" AutomationProperties.Name="{Binding Label, StringFormat=Browse for {0}}">
                             <StackPanel Orientation="Horizontal">
@@ -82,16 +82,24 @@
                         <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label}" />
                     </DockPanel>
                     <hc:PasswordBox IsSafeEnabled="False" UnsafePassword="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                    ShowEyeButton="True" Margin="0,4,0,0"
+                                    ShowEyeButton="True"
                                     Visibility="{Binding IsSecret, Converter={StaticResource BoolToVisibility}}"
                                     AutomationProperties.Name="{Binding Label}" />
-                    <ToggleButton Style="{StaticResource ToggleButtonSwitch}" HorizontalAlignment="Left" Margin="0,4,0,0"
+                    <ToggleButton Style="{StaticResource ToggleButtonSwitch}" HorizontalAlignment="Left"
                                   IsChecked="{Binding BoolValue}"
                                   Visibility="{Binding IsToggle, Converter={StaticResource BoolToVisibility}}"
                                   AutomationProperties.Name="{Binding Label}" />
-                    <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Value}" Margin="0,4,0,0" Width="200" HorizontalAlignment="Left"
+                    <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Value}" MinWidth="200" HorizontalAlignment="Left"
                               Visibility="{Binding IsChoice, Converter={StaticResource BoolToVisibility}}"
                               AutomationProperties.Name="{Binding Label}" />
+                </StackPanel>
+            </DataTemplate>
+
+            <!-- Label, editor and help text for one plugin setting; used by the first-run wizard's AI step -->
+            <DataTemplate x:Key="PluginSettingTemplate" DataType="{x:Type vm:PluginSettingViewModel}">
+                <StackPanel Margin="0,6,0,0">
+                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                    <ContentPresenter Margin="0,4,0,0" Content="{Binding}" ContentTemplate="{StaticResource PluginSettingEditorTemplate}" />
                     <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0"
                                Foreground="{DynamicResource SecondaryTextBrush}"
                                Visibility="{Binding Description, Converter={StaticResource NullToVisibility}}" />

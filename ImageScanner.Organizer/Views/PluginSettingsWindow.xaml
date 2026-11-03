@@ -7,7 +7,7 @@
            xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
            mc:Ignorable="d"
            d:DataContext="{d:DesignInstance vm:PluginSettingsViewModel}"
-           Title="{Binding Title}" Width="560" Height="640" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+           Title="{Binding Title}" Width="720" Height="720" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
            Background="{DynamicResource RegionBrush}">
     <DockPanel>
         <!-- Header: icon, name, description -->
@@ -28,9 +28,9 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl Margin="20,8,20,16" ItemsSource="{Binding Settings}" ItemTemplate="{StaticResource PluginSettingTemplate}"
-                          AutomationProperties.Name="Plugin settings" />
-        </ScrollViewer>
+        <!-- Rows come from PluginSettingsSheet: one per setting, grouped by the setting's Category -->
+        <hc:PropertyGrid Margin="12,10,12,10" SelectedObject="{Binding Sheet}" MinTitleWidth="170" MaxTitleWidth="210"
+                         AutomationProperties.Name="Plugin settings" />
+
     </DockPanel>
 </hc:Window>

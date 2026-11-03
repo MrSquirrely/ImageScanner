@@ -65,7 +65,10 @@ public record PluginSettingPreset(string Label, string Value);
 /// <param name="Presets">For text settings: buttons that fill the box with a preset value.</param>
 public record PluginSetting(string Key, string Label, PluginSettingKind Kind, string? DefaultValue = null, string? Description = null,
                             IReadOnlyList<string>? Choices = null, string? FileFilter = null,
-                            IReadOnlyList<PluginSettingPreset>? Presets = null);
+                            IReadOnlyList<PluginSettingPreset>? Presets = null) {
+    /// <summary>Groups the setting in the settings dialog (e.g. "Server", "Prompts"). Settings without one go under "General".</summary>
+    public string? Category { get; init; }
+}
 
 public enum NotificationKind {
     Info,
