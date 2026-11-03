@@ -19,10 +19,22 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
     internal const string MaxWordsSetting = "MaxWordsPerKeyword";
     internal const string LatinOnlySetting = "LatinOnly";
     internal const string DepluralizeSetting = "Depluralize";
-    internal const string JsonGrammarSetting = "ConstrainJson";
+    internal const string TagPromptSetting = "TagPrompt";
+    internal const string CaptionPromptSetting = "CaptionPrompt";
 
-    internal const string KeywordsAndDescriptionMode = "Keywords and description";
-    internal const string KeywordsOnlyMode = "Keywords only";
+    internal const string TagsAndCaptionMode = "Tags and caption";
+    internal const string TagsOnlyMode = "Tags only";
+
+    internal const string DefaultTagPrompt = "Write a list of booru-style tags for this image.";
+    internal const string E621TagPrompt = "Write a list of e621 tags for this image.";
+    internal const string DanbooruTagPrompt = "Write a list of Danbooru tags for this image.";
+
+    internal const string DefaultCaptionPrompt =
+        "Write a straightforward caption for this image. Begin with the main subject and medium. Mention pivotal elements—people, objects, " +
+        "scenery—using confident, definite language. Focus on concrete details like color, shape, texture, and spatial relationships. " +
+        "Show how elements interact. Omit mood and speculative wording. If text is present, quote it exactly. Note any watermarks, signatures, " +
+        "or compression artifacts. Never mention what's absent, resolution, or unobservable details. Vary your sentence structure and keep " +
+        "the description concise, without starting with \"This image is…\" or similar phrasing.";
 
     private LocalServer? server;
 
@@ -51,16 +63,22 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
         new(ModelNameSetting, "Model name (optional)", PluginSettingKind.Text,
             Description: "Only needed for servers that host several models (LM Studio, Ollama). Defaults to the first model the server lists."),
         new(PasswordSetting, "Server password (optional)", PluginSettingKind.Secret),
-        new(ModeSetting, "Generate", PluginSettingKind.Choice, KeywordsAndDescriptionMode, Choices: [KeywordsAndDescriptionMode, KeywordsOnlyMode]),
+        new(ModeSetting, "Generate", PluginSettingKind.Choice, TagsAndCaptionMode, Choices: [TagsAndCaptionMode, TagsOnlyMode],
+            Description: "A caption is a second request per image, so tags only is about twice as fast."),
+        new(TagPromptSetting, "Tag prompt", PluginSettingKind.MultilineText, DefaultTagPrompt,
+            "Sent with each image. The model should answer with a comma-separated list of tags.",
+            Presets: [new("Default", DefaultTagPrompt), new("Furry (e621)", E621TagPrompt), new("Anime (Danbooru)", DanbooruTagPrompt)]),
+        new(CaptionPromptSetting, "Caption prompt", PluginSettingKind.MultilineText, DefaultCaptionPrompt,
+            "Used for the image description when generating tags and caption.",
+            Presets: [new("Default", DefaultCaptionPrompt)]),
         new(ImageSizeSetting, "Image size sent to the model (px)", PluginSettingKind.Number, "768",
             "Longest edge. 392 to 896 works well; larger is slower and not always better."),
         new(MaxTokensSetting, "Max tokens per reply", PluginSettingKind.Number, "300"),
         new(TemperatureSetting, "Temperature", PluginSettingKind.Number, "0.1", "Lower gives more consistent tags. 0.1 to 0.5 recommended."),
-        new(MaxWordsSetting, "Max words per keyword", PluginSettingKind.Number, "2"),
+        new(MaxWordsSetting, "Max words per tag", PluginSettingKind.Number, "4",
+            "Longer tags are dropped. Booru tags such as looking_at_viewer have three words."),
         new(LatinOnlySetting, "Latin characters only", PluginSettingKind.Toggle, "true", "Turn off to keep keywords in non-Latin scripts."),
-        new(DepluralizeSetting, "Singularize keywords", PluginSettingKind.Toggle, "false", "\"cats\" becomes \"cat\" so the same tag isn't created twice."),
-        new(JsonGrammarSetting, "Force JSON output", PluginSettingKind.Toggle, "false",
-            "Ask the server to constrain replies to JSON. Helps weak models; not every server supports it.")
+        new(DepluralizeSetting, "Singularize keywords", PluginSettingKind.Toggle, "false", "\"cats\" becomes \"cat\" so the same tag isn't created twice.")
     ];
 
     public void Initialize(IPluginHost host) {

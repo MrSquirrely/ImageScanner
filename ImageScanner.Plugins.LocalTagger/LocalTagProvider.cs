@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json.Nodes;
 
 using ImageScanner.Core.Library;
@@ -13,7 +12,7 @@ namespace ImageScanner.Plugins.LocalTagger;
 internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost host, LocalServer server) : ITagSuggestionProvider {
     public const string ProviderId = "local.koboldcpp";
 
-    private const string SystemPrompt = "You are an image tagging assistant. You describe images accurately and answer only with JSON.";
+    private const string SystemPrompt = "You are a helpful image captioner.";
 
     private readonly SemaphoreSlim oneAtATime = new(1, 1);
     private string? cachedModel;
@@ -25,7 +24,10 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
 
     public async Task<TagSuggestion> SuggestAsync(TagSuggestionRequest request, CancellationToken cancellationToken) {
         LocalServerOptions options = ReadServerOptions();
-        bool includeDescription = Setting(LocalTaggerPlugin.ModeSetting) != LocalTaggerPlugin.KeywordsOnlyMode;
+        // "Keywords only" is the setting's value from before tags and captions used separate prompts
+        bool includeCaption = Setting(LocalTaggerPlugin.ModeSetting) is not (LocalTaggerPlugin.TagsOnlyMode or "Keywords only");
+        string tagPrompt = Setting(LocalTaggerPlugin.TagPromptSetting) ?? LocalTaggerPlugin.DefaultTagPrompt;
+        string captionPrompt = Setting(LocalTaggerPlugin.CaptionPromptSetting) ?? LocalTaggerPlugin.DefaultCaptionPrompt;
         int imageSize = Math.Clamp(ReadInt(LocalTaggerPlugin.ImageSizeSetting, 768), 256, 2048);
 
         await oneAtATime.WaitAsync(cancellationToken);
@@ -36,30 +38,34 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
                                 : await server.GetDefaultModelAsync(options, cancellationToken);
 
             byte[] jpeg = await Task.Run(() => PrepareImage(request, imageSize), cancellationToken);
-            JsonObject payload = BuildPayload(request, jpeg, includeDescription);
 
-            // Small models occasionally return no usable keywords; one retry usually fixes it
-            ParsedResponse parsed = new([], null, null);
-            List<string> keywords = [];
-            for (int attempt = 0; attempt < 2 && keywords.Count == 0; attempt++) {
-                parsed = ResponseParser.Parse(await server.ChatAsync(options, payload, cancellationToken));
-                keywords = KeywordNormalizer.Normalize(parsed.Keywords, ReadKeywordOptions());
+            // Small models occasionally return nothing usable; one retry usually fixes it
+            List<string> tags = [];
+            for (int attempt = 0; attempt < 2 && tags.Count == 0; attempt++) {
+                string? reply = await server.ChatAsync(options, BuildPayload(jpeg, tagPrompt), cancellationToken);
+                tags = KeywordNormalizer.Normalize(ResponseParser.ParseTagList(reply), ReadKeywordOptions());
             }
 
-            if (keywords.Count == 0) {
-                throw new TagProviderException($"The local model didn't return usable keywords for {request.Image.FileName}.");
+            if (tags.Count == 0) {
+                throw new TagProviderException($"The local model didn't return usable tags for {request.Image.FileName}.");
             }
 
-            // Only accept a category the library already uses; small models invent inconsistent ones
-            string? category = request.Categories.FirstOrDefault(existing => string.Equals(existing, parsed.Category, StringComparison.OrdinalIgnoreCase));
-            return new TagSuggestion([.. keywords.Take(request.MaxTags)], category, includeDescription ? parsed.Description : null);
+            string? caption = null;
+            if (includeCaption) {
+                caption = ResponseParser.ParseCaption(await server.ChatAsync(options, BuildPayload(jpeg, captionPrompt), cancellationToken));
+            }
+
+            return new TagSuggestion([.. tags.Take(request.MaxTags)], Description: caption);
         }
         finally {
             oneAtATime.Release();
         }
     }
 
-    private JsonObject BuildPayload(TagSuggestionRequest request, byte[] jpeg, bool includeDescription) {
+    /// <summary>
+    /// One chat request: the image followed by the user's prompt, exactly as written in settings.
+    /// </summary>
+    private JsonObject BuildPayload(byte[] jpeg, string prompt) {
         JsonObject payload = new() {
             ["messages"] = new JsonArray(
                 new JsonObject { ["role"] = "system", ["content"] = SystemPrompt },
@@ -70,7 +76,7 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
                             ["type"] = "image_url",
                             ["image_url"] = new JsonObject { ["url"] = $"data:image/jpeg;base64,{Convert.ToBase64String(jpeg)}" }
                         },
-                        new JsonObject { ["type"] = "text", ["text"] = BuildInstruction(request, includeDescription) })
+                        new JsonObject { ["type"] = "text", ["text"] = prompt })
                 }),
             ["max_tokens"] = ReadInt(LocalTaggerPlugin.MaxTokensSetting, 300),
             ["temperature"] = ReadDouble(LocalTaggerPlugin.TemperatureSetting, 0.1),
@@ -86,43 +92,7 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
             payload["model"] = cachedModel;
         }
 
-        if (bool.TryParse(Setting(LocalTaggerPlugin.JsonGrammarSetting), out bool constrain) && constrain) {
-            JsonObject properties = new() { ["Keywords"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } } };
-            JsonArray required = ["Keywords"];
-            if (includeDescription) {
-                properties["Description"] = new JsonObject { ["type"] = "string" };
-                required.Add("Description");
-            }
-
-            payload["response_format"] = new JsonObject {
-                ["type"] = "json_object",
-                ["schema"] = new JsonObject { ["type"] = "object", ["properties"] = properties, ["required"] = required }
-            };
-        }
-
         return payload;
-    }
-
-    private static string BuildInstruction(TagSuggestionRequest request, bool includeDescription) {
-        int minimum = Math.Min(5, request.MaxTags);
-        StringBuilder instruction = new("Look at this image and return a JSON object with these fields:\n");
-        if (includeDescription) {
-            instruction.AppendLine("- \"Description\": one or two sentences in English describing the image, written in the active voice.");
-        }
-
-        instruction.AppendLine($"- \"Keywords\": {minimum} to {request.MaxTags} English keywords of one or two words each, covering the main subjects, " +
-                               "objects, setting, activities, artistic style, notable colors and mood. If people are visible, include clothing and approximate age group.");
-        if (request.Categories.Count > 0) {
-            instruction.AppendLine($"- \"Category\": the best match from this list, or an empty string if none fits: {string.Join(", ", request.Categories.Take(40))}.");
-        }
-
-        if (request.ExistingTags.Count > 0) {
-            // Kept short: small models have small context windows and copy long lists verbatim
-            instruction.AppendLine($"Reuse these existing tags when they describe the image: {string.Join(", ", request.ExistingTags.Take(60))}.");
-        }
-
-        instruction.Append("Answer with the JSON object only.");
-        return instruction.ToString();
     }
 
     private static byte[] PrepareImage(TagSuggestionRequest request, int imageSize) {

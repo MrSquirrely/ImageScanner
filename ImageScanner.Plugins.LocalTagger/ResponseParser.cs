@@ -40,6 +40,52 @@ public static partial class ResponseParser {
         return new ParsedResponse(keywords, description, null);
     }
 
+    /// <summary>
+    /// Reads the reply to a tag prompt ("Write a list of booru-style tags…"): normally a comma-separated
+    /// list, but models also answer with one tag per line, bullets, a "Tags:" label or JSON.
+    /// </summary>
+    public static List<string> ParseTagList(string? reply) {
+        string text = CleanReply(reply);
+        if (text.Length == 0) {
+            return [];
+        }
+
+        if (text.Contains('{') && TryParseJson(text) is { Keywords.Count: > 0 } json) {
+            return json.Keywords;
+        }
+
+        text = LeadingLabel().Replace(text, string.Empty);
+        List<string> tags = [];
+        foreach (string item in text.Split([',', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+            string tag = ListMarker().Replace(item, string.Empty).Trim().Trim('"', '\'', '.', '`');
+
+            // Anything sentence-length is commentary, not a tag
+            if (tag.Length is > 0 and <= 60) {
+                tags.Add(tag);
+            }
+        }
+
+        return tags;
+    }
+
+    /// <summary>
+    /// Reads the reply to a caption prompt: prose, possibly with a "Caption:" label, quotes or a code fence.
+    /// </summary>
+    public static string? ParseCaption(string? reply) {
+        string text = LeadingCaptionLabel().Replace(CleanReply(reply), string.Empty);
+        text = Whitespace().Replace(text, " ").Trim().Trim('"');
+        return text.Length == 0 ? null : text;
+    }
+
+    private static string CleanReply(string? reply) {
+        if (string.IsNullOrWhiteSpace(reply)) {
+            return string.Empty;
+        }
+
+        string text = ThinkBlock().Replace(reply, string.Empty);
+        return CodeFence().Replace(text, string.Empty).Trim();
+    }
+
     private static ParsedResponse? TryParseJson(string text) {
         int start = text.IndexOf('{');
         int end = text.LastIndexOf('}');
@@ -88,6 +134,21 @@ public static partial class ResponseParser {
 
     [GeneratedRegex(@"<think>.*?</think>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex ThinkBlock();
+
+    [GeneratedRegex(@"```[a-zA-Z]*")]
+    private static partial Regex CodeFence();
+
+    [GeneratedRegex(@"^\s*(here (is|are)[^:\n]*|(booru[- ]style |e621 |danbooru )?(tags|keywords))\s*:\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex LeadingLabel();
+
+    [GeneratedRegex(@"^\s*(here (is|are)[^:\n]*|caption|description)\s*:\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex LeadingCaptionLabel();
+
+    [GeneratedRegex(@"^\s*(\d+[.)]|[-*•])\s+")]
+    private static partial Regex ListMarker();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex Whitespace();
 
     [GeneratedRegex(@",(\s*[}\]])")]
     private static partial Regex TrailingComma();

@@ -24,6 +24,12 @@ public partial class PluginSettingViewModel(PluginSetting definition, string? va
     public bool IsToggle => Definition.Kind == PluginSettingKind.Toggle;
     public bool IsChoice => Definition.Kind == PluginSettingKind.Choice;
     public bool IsPath => Definition.Kind is PluginSettingKind.FilePath or PluginSettingKind.FolderPath;
+    public bool IsMultiline => Definition.Kind == PluginSettingKind.MultilineText;
+    public IReadOnlyList<PluginSettingPreset> Presets => Definition.Presets ?? [];
+    public bool HasPresets => Presets.Count > 0;
+
+    [RelayCommand]
+    private void FillPreset(PluginSettingPreset preset) => Value = preset.Value;
 
     [ObservableProperty]
     public partial string? Value { get; set; } = value;

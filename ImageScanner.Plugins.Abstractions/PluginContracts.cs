@@ -46,8 +46,14 @@ public enum PluginSettingKind {
     FilePath,
 
     /// <summary>A path to a folder, with a Browse button.</summary>
-    FolderPath
+    FolderPath,
+
+    /// <summary>Several lines of text, e.g. a prompt.</summary>
+    MultilineText
 }
+
+/// <summary>A named value the user can fill a text setting with in one click (e.g. a prompt template).</summary>
+public record PluginSettingPreset(string Label, string Value);
 
 /// <param name="Key">Storage key, unique within the plugin.</param>
 /// <param name="Label">Shown above the editor.</param>
@@ -56,8 +62,10 @@ public enum PluginSettingKind {
 /// <param name="Description">Help text shown under the editor.</param>
 /// <param name="Choices">The options for <see cref="PluginSettingKind.Choice"/>.</param>
 /// <param name="FileFilter">For <see cref="PluginSettingKind.FilePath"/>: an open-file dialog filter, e.g. "Models (*.gguf)|*.gguf|All files|*.*".</param>
+/// <param name="Presets">For text settings: buttons that fill the box with a preset value.</param>
 public record PluginSetting(string Key, string Label, PluginSettingKind Kind, string? DefaultValue = null, string? Description = null,
-                            IReadOnlyList<string>? Choices = null, string? FileFilter = null);
+                            IReadOnlyList<string>? Choices = null, string? FileFilter = null,
+                            IReadOnlyList<PluginSettingPreset>? Presets = null);
 
 public enum NotificationKind {
     Info,

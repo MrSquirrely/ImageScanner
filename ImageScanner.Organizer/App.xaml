@@ -47,6 +47,29 @@
                     <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0"
                              Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}"
                              AutomationProperties.Name="{Binding Label}" />
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0" MinHeight="64" MaxHeight="160"
+                             AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
+                             Visibility="{Binding IsMultiline, Converter={StaticResource BoolToVisibility}}"
+                             AutomationProperties.Name="{Binding Label}" />
+                    <!-- One-click presets that fill the box above -->
+                    <WrapPanel Margin="0,6,0,0" Visibility="{Binding HasPresets, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Fill with:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                        <ItemsControl ItemsSource="{Binding Presets}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Label}" Margin="0,0,6,4" Padding="10,2" Height="26"
+                                            Command="{Binding DataContext.FillPresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" ToolTip="{Binding Value}"
+                                            AutomationProperties.Name="{Binding Label, StringFormat=Fill with {0}}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </WrapPanel>
                     <DockPanel Margin="0,4,0,0" Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}">
                         <Button DockPanel.Dock="Right" Margin="6,0,0,0" Command="{Binding BrowseCommand}"
                                 ToolTip="Browse for the file" AutomationProperties.Name="{Binding Label, StringFormat=Browse for {0}}">
