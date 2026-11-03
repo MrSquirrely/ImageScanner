@@ -60,6 +60,7 @@ public partial class MainViewModel : ObservableObject {
             SelectedQuickFilter = QuickFilters[0];
             SearchText = query;
         };
+        plugins.RescanHandler = RescanForPluginAsync;
 
         refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         refreshTimer.Tick += (_, _) => {
@@ -825,6 +826,33 @@ public partial class MainViewModel : ObservableObject {
         }
     }
 
+    /// <summary>
+    /// <see cref="IPluginHost.RescanLibraryAsync"/>: the Rescan button without the prompts, skipped while busy.
+    /// </summary>
+    private async Task<bool> RescanForPluginAsync(bool quiet) {
+        if (IsBusy) {
+            return false;
+        }
+
+        foreach (ScanSource source in Library.GetSources()) {
+            if (IsBusy) {
+                // Something else started between two folders; the rest wait for the next rescan
+                return false;
+            }
+
+            if (quiet && !Directory.Exists(source.RootPath)) {
+                // An unplugged drive or a disconnected share: don't report the same error on every scheduled rescan
+                continue;
+            }
+
+            await RunImportAsync(new ImportRequest(source.RootPath, source.IgnoredFolders, Settings.DetectComics, Settings.SuggestTagsOnImport, Settings.AutoApplySuggestions) {
+                Quiet = quiet
+            });
+        }
+
+        return true;
+    }
+
     private async Task RunImportAsync(ImportRequest request) {
         List<LibraryImage> newImages = [];
         await RunJobAsync($"Importing {request.RootPath}", async token => newImages = await ScanSourceAsync(request, token));
@@ -860,6 +888,10 @@ public partial class MainViewModel : ObservableObject {
 
                 ReportJob($"Running plugins {++processed:N0} / {result.NewImages.Count:N0}", processed, result.NewImages.Count);
             }
+        }
+
+        if (request.Quiet && result.Added + result.Updated + result.Removed + result.ComicsCreated.Count + result.Failed == 0) {
+            return result.NewImages;
         }
 
         Growl.Success($"Import finished: {result.Added:N0} new, {result.Updated:N0} updated, {result.Removed:N0} removed"
@@ -961,4 +993,7 @@ public partial class MainViewModel : ObservableObject {
     #endregion
 }
 
-public record ImportRequest(string RootPath, IReadOnlyCollection<string> IgnoredFolders, bool DetectComics, bool SuggestTags, bool AutoApply);
+public record ImportRequest(string RootPath, IReadOnlyCollection<string> IgnoredFolders, bool DetectComics, bool SuggestTags, bool AutoApply) {
+    /// <summary>Only report the result when something changed (scheduled rescans).</summary>
+    public bool Quiet { get; init; }
+}

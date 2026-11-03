@@ -36,6 +36,15 @@
       "category": "image-action-plugins",
       "title": "Batch converter (AVIF, WebP, JPEG XL …)",
       "description": "Converts the selected images to AVIF (default), WebP, JPEG XL, JPEG or PNG and shows how much space it saved: each file's original and new size, and the total.\n\nRight-click → Convert images…, or Tools → Batch convert images…. Choose the quality and where to save (a \"converted\" folder next to each image by default). Originals are never changed. \"Only keep files that got smaller\" discards conversions that didn't help. Uses Magick.NET (ImageMagick), so it is about a 12 MB download."
+    },
+    {
+      "project": "ImageScanner.Plugins.ScheduledRescan",
+      "id": "pixshelf.scheduled-rescan",
+      "name": "Scheduled rescan",
+      "version": "1.0",
+      "category": "other-plugins",
+      "title": "Scheduled rescan",
+      "description": "Rescans your imported folders on a schedule (every 15 minutes up to once a day), so new, changed and deleted images show up without pressing Rescan.\n\nThe interval counts from the last scan, including ones you start yourself, and a rescan only reads files that are new or changed. It waits while PixShelf is busy with another task, skips folders on drives that aren't connected, and by default only shows a notification when something changed. Needs PixShelf 1.1 or later."
     }
   ]
 }

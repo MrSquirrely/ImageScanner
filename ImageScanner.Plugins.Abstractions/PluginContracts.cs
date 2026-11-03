@@ -98,6 +98,14 @@ public interface IPluginHost {
     /// <summary>Runs a search in the gallery, e.g. "tag:duplicate".</summary>
     void ShowSearch(string query);
 
+    /// <summary>
+    /// Rescans every imported folder, like the Rescan button: new files are imported, changed ones refreshed and
+    /// deleted ones removed, with progress in the status bar. Returns false without scanning while the app is busy
+    /// with another task (an import, AI tagging run from a menu, a plugin command); try again later.
+    /// </summary>
+    /// <param name="quiet">Only show the "Import finished" notification when something was added, updated or removed.</param>
+    Task<bool> RescanLibraryAsync(bool quiet = false);
+
     void RegisterTagSuggestionProvider(ITagSuggestionProvider provider);
     void RegisterImageAction(IImageAction action);
     void RegisterImportProcessor(IImportProcessor processor);

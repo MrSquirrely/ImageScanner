@@ -98,6 +98,9 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     public Func<IReadOnlyList<LibraryImage>> SelectionProvider { get; set; } = () => [];
     public Action<string> SearchHandler { get; set; } = _ => { };
 
+    // Until the main window is up there's nothing to rescan with
+    public Func<bool, Task<bool>> RescanHandler { get; set; } = _ => Task.FromResult(false);
+
     public static IEnumerable<string> PluginDirectories => [
         Path.Combine(AppContext.BaseDirectory, "Plugins"),
         Path.Combine(AppSettings.AppDataDirectory, "Plugins")
@@ -294,6 +297,9 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     }
 
     public void ShowSearch(string query) => System.Windows.Application.Current.Dispatcher.Invoke(() => SearchHandler(query));
+
+    public Task<bool> RescanLibraryAsync(bool quiet = false) =>
+        System.Windows.Application.Current.Dispatcher.InvokeAsync(() => RescanHandler(quiet)).Task.Unwrap();
 
     public void RegisterTagSuggestionProvider(ITagSuggestionProvider provider) {
         TagProviders.Add(provider);

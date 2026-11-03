@@ -23,6 +23,10 @@ public record ScanResult(int Added, int Updated, int Removed, int Failed, List<C
 public class LibraryScanner(ImageLibrary library) {
     private const int SaveBatchSize = 250;
 
+    // Online-only files (OneDrive, Dropbox and other cloud placeholders): reading one downloads it, which crawls
+    // through a drive scan. FILE_ATTRIBUTE_RECALL_ON_OPEN and FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS aren't in the enum.
+    private const FileAttributes CloudOnlyAttributes = FileAttributes.Offline | (FileAttributes)0x40000 | (FileAttributes)0x400000;
+
     public async Task<ScanResult> ScanAsync(ScanOptions options, IProgress<ScanProgress>? progress = null, CancellationToken cancellationToken = default) {
         string root = Path.GetFullPath(options.RootPath);
         if (!Directory.Exists(root)) {
@@ -38,7 +42,9 @@ public class LibraryScanner(ImageLibrary library) {
             LibraryImage? existing = library.GetImageByPath(file);
             if (existing != null) {
                 FileInfo info = new(file);
-                bool unchanged = (info.LastWriteTimeUtc - existing.LastModified).Duration() < TimeSpan.FromSeconds(1)
+                // LiteDB hands dates back in local time; comparing that with the UTC write time made every file look
+                // changed (by the time zone offset), so rescans re-imported everything
+                bool unchanged = (info.LastWriteTimeUtc - existing.LastModified.ToUniversalTime()).Duration() < TimeSpan.FromSeconds(1)
                                  && info.Length == existing.FileSize
                                  && !string.IsNullOrEmpty(existing.ThumbnailId);
                 if (unchanged) {
@@ -53,17 +59,17 @@ public class LibraryScanner(ImageLibrary library) {
         int failed = 0;
         int updated = 0;
         List<LibraryImage> newImages = [];
-        List<LibraryImage> pending = [];
+        List<(LibraryImage Image, byte[] Thumbnail)> pending = [];
         Lock batchLock = new();
 
         void Flush() {
-            List<LibraryImage> toSave;
+            List<(LibraryImage, byte[])> toSave;
             lock (batchLock) {
                 toSave = [.. pending];
                 pending.Clear();
             }
 
-            library.Save(toSave, raiseChanged: false);
+            library.SaveWithThumbnails(toSave, raiseChanged: false);
         }
 
         await Parallel.ForEachAsync(work, new ParallelOptions {
@@ -79,8 +85,6 @@ public class LibraryScanner(ImageLibrary library) {
                     DateAdded = DateTime.UtcNow
                 };
 
-                library.DeleteThumbnail(image.ThumbnailId);
-                image.ThumbnailId = library.SaveThumbnail(thumbnail, info.Name);
                 image.FileName = info.Name;
                 image.Folder = info.DirectoryName ?? string.Empty;
                 image.Extension = info.Extension.ToLowerInvariant();
@@ -93,7 +97,7 @@ public class LibraryScanner(ImageLibrary library) {
 
                 bool flushNow;
                 lock (batchLock) {
-                    pending.Add(image);
+                    pending.Add((image, thumbnail));
                     if (item.Existing == null) {
                         newImages.Add(image);
                     }
@@ -146,9 +150,7 @@ public class LibraryScanner(ImageLibrary library) {
             IEnumerable<LibraryImage> candidatesPool = library.GetAllImages()
                                                               .Where(image => image.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                                                                               && !dismissed.Contains(image.Folder));
-            foreach (ComicCandidate candidate in ComicDetector.FindCandidates(candidatesPool, options.MinimumComicPages)) {
-                comicsCreated.Add(library.CreateComic(candidate.Title, [.. candidate.Pages.Select(page => page.Id)], isAutoDetected: true, candidate.FolderPath));
-            }
+            comicsCreated = library.CreateDetectedComics(ComicDetector.FindCandidates(candidatesPool, options.MinimumComicPages));
         }
 
         source.LastScanned = DateTime.UtcNow;
@@ -169,7 +171,9 @@ public class LibraryScanner(ImageLibrary library) {
         };
 
         FileSystemEnumerable<string> enumerable = new(root, (ref FileSystemEntry entry) => entry.ToFullPath(), options) {
-            ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory && ImageProcessing.SupportedExtensions.Contains(Path.GetExtension(entry.FileName).ToString()),
+            ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory
+                                                                    && (entry.Attributes & CloudOnlyAttributes) == 0
+                                                                    && ImageProcessing.SupportedExtensions.Contains(Path.GetExtension(entry.FileName).ToString()),
             ShouldRecursePredicate = (ref FileSystemEntry entry) => !ignored.Contains(entry.FileName.ToString())
                                                                     && !ignored.Contains(entry.ToFullPath())
         };

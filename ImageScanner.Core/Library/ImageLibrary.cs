@@ -125,16 +125,7 @@ public sealed partial class ImageLibrary : IDisposable {
             database.BeginTrans();
             try {
                 foreach (LibraryImage image in batch) {
-                    image.Tags = NormalizeTags(image.Tags);
-                    if (image.Id == 0) {
-                        images.Insert(image);
-                    }
-                    else {
-                        images.Update(image);
-                    }
-
-                    imagesById[image.Id] = image;
-                    imagesByPath[image.FilePath] = image;
+                    SaveUnlocked(image);
                 }
                 database.Commit();
             }
@@ -150,6 +141,55 @@ public sealed partial class ImageLibrary : IDisposable {
     }
 
     public void Save(LibraryImage image) => Save([image]);
+
+    /// <summary>
+    /// Saves scanned images together with their new thumbnails (replacing any old ones) in a single transaction.
+    /// One commit per batch instead of one per thumbnail matters on slow disks, where every commit waits for a flush.
+    /// </summary>
+    public void SaveWithThumbnails(IReadOnlyCollection<(LibraryImage Image, byte[] Thumbnail)> batch, bool raiseChanged = true) {
+        if (batch.Count == 0) {
+            return;
+        }
+
+        lock (sync) {
+            database.BeginTrans();
+            try {
+                foreach ((LibraryImage image, byte[] thumbnail) in batch) {
+                    if (!string.IsNullOrEmpty(image.ThumbnailId)) {
+                        database.FileStorage.Delete(image.ThumbnailId);
+                    }
+
+                    string thumbnailId = NewThumbnailId();
+                    using MemoryStream stream = new(thumbnail);
+                    database.FileStorage.Upload(thumbnailId, image.FileName, stream);
+                    image.ThumbnailId = thumbnailId;
+                    SaveUnlocked(image);
+                }
+                database.Commit();
+            }
+            catch {
+                database.Rollback();
+                throw;
+            }
+        }
+
+        if (raiseChanged) {
+            Raise(LibraryChangeKind.Images);
+        }
+    }
+
+    private void SaveUnlocked(LibraryImage image) {
+        image.Tags = NormalizeTags(image.Tags);
+        if (image.Id == 0) {
+            images.Insert(image);
+        }
+        else {
+            images.Update(image);
+        }
+
+        imagesById[image.Id] = image;
+        imagesByPath[image.FilePath] = image;
+    }
 
     public void DeleteImages(IEnumerable<int> ids) {
         HashSet<int> touchedComics = [];
@@ -549,6 +589,45 @@ public sealed partial class ImageLibrary : IDisposable {
     }
 
     /// <summary>
+    /// Creates the comics the scanner detected in one transaction and raises <see cref="Changed"/> once.
+    /// </summary>
+    public List<Comic> CreateDetectedComics(IReadOnlyCollection<ComicCandidate> candidates) {
+        List<Comic> created = [];
+        if (candidates.Count == 0) {
+            return created;
+        }
+
+        lock (sync) {
+            database.BeginTrans();
+            try {
+                foreach (ComicCandidate candidate in candidates) {
+                    Comic comic = new() {
+                        Title = string.IsNullOrWhiteSpace(candidate.Title) ? "Untitled comic" : candidate.Title.Trim(),
+                        FolderPath = candidate.FolderPath,
+                        IsAutoDetected = true,
+                        DateAdded = DateTime.UtcNow
+                    };
+                    comics.Insert(comic);
+                    comicsById[comic.Id] = comic;
+                    SetPagesUnlocked(comic, [.. candidate.Pages.Select(page => page.Id)]);
+                    created.Add(comic);
+                }
+                database.Commit();
+            }
+            catch {
+                database.Rollback();
+                foreach (Comic comic in created) {
+                    comicsById.Remove(comic.Id);
+                }
+                throw;
+            }
+        }
+
+        Raise(LibraryChangeKind.Comics);
+        return created;
+    }
+
+    /// <summary>
     /// Replaces a comic's page list and order.
     /// </summary>
     public void SetComicPages(int comicId, IReadOnlyList<int> orderedImageIds) {
@@ -682,8 +761,10 @@ public sealed partial class ImageLibrary : IDisposable {
 
     #region Thumbnails
 
+    private static string NewThumbnailId() => $"$/thumbs/{Guid.NewGuid():N}.jpg";
+
     public string SaveThumbnail(byte[] jpegBytes, string fileName) {
-        string thumbnailId = $"$/thumbs/{Guid.NewGuid():N}.jpg";
+        string thumbnailId = NewThumbnailId();
         using MemoryStream stream = new(jpegBytes);
         lock (sync) {
             database.FileStorage.Upload(thumbnailId, fileName, stream);
