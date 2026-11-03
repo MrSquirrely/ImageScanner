@@ -28,25 +28,31 @@ public partial class FirstRunViewModel : ObservableObject {
     public static readonly string[] StepNames = ["Welcome", "Library", "AI tagging", "Viewing", "Plugins", "Finish"];
 
     private readonly AppSettings settings;
+    private readonly Dictionary<PluginInfo, IReadOnlyList<PluginSettingViewModel>> draftSettings;
 
     public FirstRunViewModel(AppSettings settings, PluginManager plugins) {
         this.settings = settings;
         DarkTheme = settings.DarkTheme;
         LibraryPath = settings.LibraryPath;
         UseSystemViewer = settings.UseSystemViewer;
+
+        // One set of unsaved values per plugin, shared by the AI step and the plugin cards' settings dialogs
+        draftSettings = plugins.Plugins.ToDictionary(
+            info => info,
+            info => (IReadOnlyList<PluginSettingViewModel>)(info.Plugin is IConfigurablePlugin configurable
+                ? [.. configurable.Settings.Select(setting => new PluginSettingViewModel(setting, plugins.GetSetting(info.Plugin, setting.Key)))]
+                : []));
+
         Plugins = [.. plugins.Plugins.Select(info => new PluginEntryViewModel(info, plugins, applyImmediately: false,
-                                                                           initiallyEnabled: !settings.DisabledPlugins.Contains(info.Plugin.Id)))];
+                                                                           initiallyEnabled: !settings.DisabledPlugins.Contains(info.Plugin.Id),
+                                                                           draftSettings: draftSettings[info]))];
 
         TaggingEngines = [
             // The default engine is listed first
             .. plugins.Plugins
                       .Where(info => info.Plugin is ITagProviderPlugin)
                       .OrderByDescending(info => ((ITagProviderPlugin)info.Plugin).ProviderId == AppSettings.DefaultTagProviderId)
-                      .Select(info => new TaggingEngineOption(
-                          info, info.Plugin.Name, ((ITagProviderPlugin)info.Plugin).ProviderSummary,
-                          info.Plugin is IConfigurablePlugin configurable
-                              ? [.. configurable.Settings.Select(setting => new PluginSettingViewModel(setting, plugins.GetSetting(info.Plugin, setting.Key)))]
-                              : [])),
+                      .Select(info => new TaggingEngineOption(info, info.Plugin.Name, ((ITagProviderPlugin)info.Plugin).ProviderSummary, draftSettings[info])),
             new TaggingEngineOption(null, "Don't use AI tagging", "You can still tag images by hand, and turn AI tagging on later in Settings.", [])
         ];
         SelectedEngine = TaggingEngines.FirstOrDefault(engine => engine.ProviderId == settings.ActiveTagProviderId)
@@ -143,11 +149,14 @@ public partial class FirstRunViewModel : ObservableObject {
         settings.UseSystemViewer = UseSystemViewer;
         settings.SuggestTagsOnImport = UsesAi && SuggestOnImport;
         settings.AutoApplySuggestions = UsesAi && AutoApply;
+        foreach ((PluginInfo plugin, IReadOnlyList<PluginSettingViewModel> values) in draftSettings) {
+            foreach (PluginSettingViewModel setting in values) {
+                settings.SetPluginSetting(plugin.Plugin.Id, setting.Definition.Key, setting.Value, setting.IsSecret);
+            }
+        }
+
         if (SelectedEngine.Info is PluginInfo engine) {
             settings.ActiveTagProviderId = SelectedEngine.ProviderId;
-            foreach (PluginSettingViewModel setting in SelectedEngine.Settings) {
-                settings.SetPluginSetting(engine.Plugin.Id, setting.Definition.Key, setting.Value, setting.IsSecret);
-            }
 
             // The chosen engine must be enabled even if it was switched off on the Plugins step
             Plugins.First(plugin => plugin.Info == engine).IsEnabled = true;

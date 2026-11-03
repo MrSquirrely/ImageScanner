@@ -19,33 +19,25 @@
 
         <TabControl Style="{StaticResource TabControlInLine}" Margin="12">
             <TabItem Header="General">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="8,12">
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Run setup wizard again" Command="{Binding RerunSetupCommand}"
-                                    ToolTip="Shows the first-run wizard the next time the app starts" />
-                            <CheckBox Content="Dark theme" IsChecked="{Binding DarkTheme}" />
-                        </DockPanel>
+                <DockPanel Margin="8,12">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <Button DockPanel.Dock="Right" Content="Run setup wizard again" Command="{Binding RerunSetupCommand}"
+                                ToolTip="Shows the first-run wizard the next time the app starts" />
+                        <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Text="Select a setting to see what it does. Changes apply when you click Save." />
+                    </DockPanel>
+                    <!-- Rows come from SettingsSheet's Category / DisplayName / Description attributes -->
+                    <hc:PropertyGrid SelectedObject="{Binding Sheet}" MinTitleWidth="220" MaxTitleWidth="260"
+                                     AutomationProperties.Name="Settings" />
+                </DockPanel>
+            </TabItem>
 
-                        <TextBlock Text="Open images with" FontWeight="SemiBold" Margin="0,18,0,4" />
-                        <RadioButton Style="{StaticResource OptionRadio}" GroupName="SettingsViewer" IsChecked="{Binding UseSystemViewer, Converter={StaticResource BoolRadio}, ConverterParameter=False}" Content="Built-in viewer (zoom, pan, browse with arrow keys)" />
-                        <RadioButton Style="{StaticResource OptionRadio}" GroupName="SettingsViewer" Margin="0,6,0,0" IsChecked="{Binding UseSystemViewer, Converter={StaticResource BoolRadio}, ConverterParameter=True}" Content="My computer's default image app" />
-                        <TextBlock Text="Comics always open in the built-in reader." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
-
-                        <TextBlock Text="Library database" FontWeight="SemiBold" Margin="0,18,0,4" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Change…" Command="{Binding BrowseLibraryCommand}" />
-                            <TextBox Text="{Binding LibraryPath}" IsReadOnly="True" AutomationProperties.Name="Library database path" />
-                        </DockPanel>
-                        <TextBlock Text="Changing the library file takes effect after restarting." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
-
-                        <TextBlock Text="Import" FontWeight="SemiBold" Margin="0,18,0,4" />
-                        <CheckBox Content="Group comic pages automatically" IsChecked="{Binding DetectComics}" />
-                        <TextBlock Text="Skip folders named (separate with ;)" Margin="0,10,0,4" />
-                        <TextBox Text="{Binding IgnoredFolders}" TextWrapping="Wrap" AutomationProperties.Name="Folders to skip" />
-
-                        <TextBlock Text="Imported folders" FontWeight="SemiBold" Margin="0,18,0,4" />
-                        <ItemsControl ItemsSource="{Binding Sources}">
+            <TabItem Header="Imported folders">
+                <DockPanel Margin="8,12">
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,10" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                               Text="Folders and drives you've imported. Rescan checks all of them; remove one to stop rescanning it." />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Sources}" AutomationProperties.Name="Imported folders">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <DockPanel Margin="0,2">
@@ -61,26 +53,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <TabItem Header="AI tagging">
-                <StackPanel Margin="8,12">
-                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
-                               Text="AI tagging sends a downscaled copy of each image (max 1024px) to the selected provider and suggests tags, a category and a short description. Providers come from plugins; configure API keys on the Plugins tab." />
-                    <TextBlock Text="Provider" FontWeight="SemiBold" Margin="0,16,0,4" />
-                    <ComboBox ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}" DisplayMemberPath="DisplayName" AutomationProperties.Name="AI provider" />
-
-                    <TextBlock Text="Maximum tags per image" FontWeight="SemiBold" Margin="0,16,0,4" />
-                    <hc:NumericUpDown Value="{Binding MaxSuggestedTags}" Minimum="1" Maximum="50" Width="120" HorizontalAlignment="Left" AutomationProperties.Name="Maximum tags per image" />
-
-                    <TextBlock Text="Parallel requests" FontWeight="SemiBold" Margin="0,16,0,4" />
-                    <hc:NumericUpDown Value="{Binding AiConcurrency}" Minimum="1" Maximum="16" Width="120" HorizontalAlignment="Left" AutomationProperties.Name="Parallel AI requests" />
-
-                    <CheckBox Margin="0,18,0,0" Content="Suggest tags for new images when importing" IsChecked="{Binding SuggestTagsOnImport}" />
-                    <CheckBox Margin="0,8,0,0" Content="Apply suggestions immediately instead of queuing them for review" IsChecked="{Binding AutoApplySuggestions}" />
-                </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </TabItem>
 
             <TabItem Header="Plugins">

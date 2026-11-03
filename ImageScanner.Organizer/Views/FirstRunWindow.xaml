@@ -7,7 +7,7 @@
            xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
            mc:Ignorable="d"
            d:DataContext="{d:DesignInstance vm:FirstRunViewModel}"
-           Title="Welcome to Image Organizer" Width="780" Height="720" ResizeMode="NoResize"
+           Title="Welcome to PixShelf" Width="780" Height="720" ResizeMode="NoResize"
            WindowStartupLocation="CenterScreen" Background="{DynamicResource RegionBrush}">
     <DockPanel>
         <hc:StepBar DockPanel.Dock="Top" Margin="24,20,24,8" ItemsSource="{Binding Steps}" StepIndex="{Binding StepIndex}"
@@ -41,7 +41,7 @@
             <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVisibility}, ConverterParameter=0}">
                 <TextBlock Text="Welcome!" FontSize="26" FontWeight="SemiBold" />
                 <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" FontSize="14"
-                           Text="Image Organizer scans your folders and drives into a searchable library. Tag and categorize images, group comic pages into readable comics, and let AI suggest tags for you." />
+                           Text="PixShelf scans your folders and drives into a searchable library. Tag and categorize images, group comic pages into readable comics, and let AI suggest tags for you." />
                 <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}"
                            Text="This short setup picks a few preferences. Everything can be changed later under Settings." />
                 <CheckBox Margin="0,28,0,0" Content="Use the dark theme" IsChecked="{Binding DarkTheme}" FontSize="14" />

@@ -14,10 +14,15 @@ using ImageScanner.Plugins;
 
 namespace ImageScanner.Organizer.Plugins;
 
-public partial class PluginInfo(IPlugin plugin, string source, bool isBuiltIn) : ObservableObject {
+public partial class PluginInfo(IPlugin plugin, string source, bool isBuiltIn, bool isOfficial) : ObservableObject {
     public IPlugin Plugin { get; } = plugin;
     public string Source { get; } = source;
     public bool IsBuiltIn { get; } = isBuiltIn;
+
+    /// <summary>
+    /// Made by the PixShelf team: built into the app, or a DLL identical to one bundled with this build.
+    /// </summary>
+    public bool IsOfficial { get; } = isOfficial;
 
     [ObservableProperty]
     public partial bool IsEnabled { get; set; } = true;
@@ -105,7 +110,7 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     /// </summary>
     public void Discover(IEnumerable<IPlugin> builtInPlugins) {
         foreach (IPlugin plugin in builtInPlugins) {
-            Add(new PluginInfo(plugin, "Built-in", isBuiltIn: true));
+            Add(new PluginInfo(plugin, "Built-in", isBuiltIn: true, isOfficial: true));
         }
 
         foreach (string directory in PluginDirectories.Where(Directory.Exists)) {
@@ -137,15 +142,30 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
                 continue;
             }
 
+            bool isOfficial = IsOfficialAssembly(assemblyPath);
             foreach (Type type in pluginTypes) {
                 try {
                     IPlugin plugin = (IPlugin)Activator.CreateInstance(type)!;
-                    Add(new PluginInfo(plugin, assemblyPath, isBuiltIn: false));
+                    Add(new PluginInfo(plugin, assemblyPath, isBuiltIn: false, isOfficial));
                 }
                 catch (Exception exception) {
                     Growl.Error($"Plugin {type.FullName} failed to load: {exception.Message}");
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// True when the file is byte-for-byte one of the plugins bundled with this build (see GenerateOfficialPluginHashes).
+    /// </summary>
+    private static bool IsOfficialAssembly(string assemblyPath) {
+        try {
+            using FileStream stream = File.OpenRead(assemblyPath);
+            string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
+            return OfficialPluginHashes.Sha256.Contains(hash, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (IOException) {
+            return false;
         }
     }
 

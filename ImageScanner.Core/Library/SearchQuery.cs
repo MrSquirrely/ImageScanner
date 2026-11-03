@@ -7,12 +7,13 @@ namespace ImageScanner.Core.Library;
 /// <code>
 ///   sunset beach            free text in file name, folder, tags, category, description
 ///   tag:cat  -tag:dog       has / lacks a tag (quotes allowed: tag:"blue sky")
+///   artist:"stanley lau"    by an artist (also by:)
 ///   cat:Wallpapers          category (also category:)
 ///   comic:"My Comic"        belongs to a comic whose title contains the text
 ///   ext:png                 file extension
 ///   folder:Downloads        folder path contains text
 ///   rating>=3 rating:5      rating comparisons
-///   is:fav is:untagged is:comic is:pending is:uncategorized
+///   is:fav is:untagged is:comic is:pending is:uncategorized is:noartist
 /// </code>
 /// </summary>
 public class SearchQuery {
@@ -80,6 +81,7 @@ public class SearchQuery {
 
         return key switch {
             "tag" or "tags" => (image, _) => image.Tags.Contains(value, StringComparer.OrdinalIgnoreCase),
+            "artist" or "by" => (image, _) => image.Artists.Contains(ImageLibrary.NormalizeArtist(value), StringComparer.OrdinalIgnoreCase),
             "cat" or "category" => (image, _) => string.Equals(image.Category, value, StringComparison.OrdinalIgnoreCase),
             "ext" => (image, _) => image.Extension.TrimStart('.').Equals(value.TrimStart('.'), StringComparison.OrdinalIgnoreCase),
             "folder" or "path" => (image, _) => image.Folder.Contains(value, StringComparison.OrdinalIgnoreCase),
@@ -90,6 +92,7 @@ public class SearchQuery {
             "is" => value.ToLowerInvariant() switch {
                 "fav" or "favorite" or "favourite" => (image, _) => image.IsFavorite,
                 "untagged" => (image, _) => image.Tags.Count == 0,
+                "noartist" => (image, _) => image.Artists.Count == 0,
                 "tagged" => (image, _) => image.Tags.Count > 0,
                 "comic" => (image, _) => image.ComicId != null,
                 "pending" => (image, _) => image.HasPendingSuggestions,
@@ -105,7 +108,8 @@ public class SearchQuery {
         || image.Folder.Contains(text, StringComparison.OrdinalIgnoreCase)
         || (image.Category?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)
         || (image.Description?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)
-        || image.Tags.Any(tag => tag.Contains(text, StringComparison.OrdinalIgnoreCase));
+        || image.Tags.Any(tag => tag.Contains(text, StringComparison.OrdinalIgnoreCase))
+        || image.Artists.Any(artist => artist.Contains(text, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Splits on whitespace while keeping quoted sections (e.g. tag:"blue sky") together.

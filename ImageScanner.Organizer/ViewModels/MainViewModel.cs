@@ -93,6 +93,10 @@ public partial class MainViewModel : ObservableObject {
     public ObservableCollection<string> AllCategoryNames { get; } = [];
     public ObservableCollection<string> DetailTags { get; } = [];
     public ObservableCollection<string> SuggestedTags { get; } = [];
+    public ObservableCollection<ArtistCount> Artists { get; } = [];
+    public ObservableCollection<string> AllArtistNames { get; } = [];
+    public ObservableCollection<string> DetailArtists { get; } = [];
+    public ObservableCollection<string> SuggestedArtists { get; } = [];
 
     public string[] Sorts => SortOptions;
 
@@ -121,6 +125,9 @@ public partial class MainViewModel : ObservableObject {
     public partial TagCount? SelectedTag { get; set; }
 
     [ObservableProperty]
+    public partial ArtistCount? SelectedArtist { get; set; }
+
+    [ObservableProperty]
     public partial bool ShowComics { get; set; }
 
     [ObservableProperty]
@@ -138,6 +145,9 @@ public partial class MainViewModel : ObservableObject {
 
     [ObservableProperty]
     public partial string NewTagText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string NewArtistText { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial string CategoryText { get; set; } = string.Empty;
@@ -197,7 +207,7 @@ public partial class MainViewModel : ObservableObject {
     /// <summary>True when every selected image is a favorite; drives the Favorite button's on state.</summary>
     public bool IsSelectionFavorite => selection.Count > 0 && selection.All(item => item.IsFavorite);
     public bool IsMultiSelection => SelectionCount > 1;
-    public bool HasSuggestions => SuggestedTags.Count > 0 || !string.IsNullOrEmpty(SuggestedCategory);
+    public bool HasSuggestions => SuggestedTags.Count > 0 || SuggestedArtists.Count > 0 || !string.IsNullOrEmpty(SuggestedCategory);
     public string SelectionHeader => SelectionCount switch {
         0 => "Nothing selected",
         1 => Current?.FileName ?? string.Empty,
@@ -222,6 +232,7 @@ public partial class MainViewModel : ObservableObject {
         try {
             string? selectedCategory = SelectedCategory?.Name;
             string? selectedTag = SelectedTag?.Name;
+            string? selectedArtist = SelectedArtist?.Name;
 
             List<LibraryImage> all = Library.GetAllImages();
             foreach (QuickFilter filter in QuickFilters) {
@@ -233,10 +244,14 @@ public partial class MainViewModel : ObservableObject {
             List<TagCount> tags = Library.GetTagCounts();
             Replace(AllTagNames, tags.Select(tag => tag.Name));
             Replace(Tags, tags.Where(tag => TagFilter.Length == 0 || tag.Name.Contains(TagFilter, StringComparison.OrdinalIgnoreCase)));
+            List<ArtistCount> artists = Library.GetArtistCounts();
+            Replace(Artists, artists);
+            Replace(AllArtistNames, artists.Select(artist => artist.Name));
             Replace(Comics, Library.GetComics().Select(comic => new ComicItemViewModel(comic, Library, Loader)));
 
             SelectedCategory = Categories.FirstOrDefault(category => category.Name == selectedCategory);
             SelectedTag = Tags.FirstOrDefault(tag => tag.Name == selectedTag);
+            SelectedArtist = Artists.FirstOrDefault(artist => artist.Name == selectedArtist);
             StatusText = $"{all.Count:N0} images · {Tags.Count:N0} tags · {Comics.Count:N0} comics";
         }
         finally {
@@ -249,6 +264,7 @@ public partial class MainViewModel : ObservableObject {
     private string BuildQuery() {
         string baseQuery = SelectedCategory != null ? $"cat:\"{SelectedCategory.Name}\""
                            : SelectedTag != null ? $"tag:\"{SelectedTag.Name}\""
+                           : SelectedArtist != null ? $"artist:\"{SelectedArtist.Name}\""
                            : SelectedQuickFilter is { IsComicsView: false } quick ? quick.Query
                            : string.Empty;
         return $"{baseQuery} {SearchText}".Trim();
@@ -311,6 +327,21 @@ public partial class MainViewModel : ObservableObject {
     partial void OnSearchTextChanged(string value) {
         searchTimer.Stop();
         searchTimer.Start();
+        UpdateSearchSuggestions(value);
+    }
+
+    public ObservableCollection<string> SearchSuggestions { get; } = [];
+
+    private void UpdateSearchSuggestions(string text) {
+        // Arrow keys and picking a suggestion put that suggestion in the box; keep the list so navigation still works
+        if (SearchSuggestions.Contains(text)) {
+            return;
+        }
+
+        List<string> suggestions = SearchCompletion.Suggest(text, AllTagNames, AllArtistNames, AllCategoryNames);
+        if (!suggestions.SequenceEqual(SearchSuggestions)) {
+            Replace(SearchSuggestions, suggestions);
+        }
     }
 
     partial void OnTagFilterChanged(string value) =>
@@ -341,6 +372,7 @@ public partial class MainViewModel : ObservableObject {
         suppressFilterChange = true;
         SelectedCategory = null;
         SelectedTag = null;
+        SelectedArtist = null;
         suppressFilterChange = false;
         ShowComics = value.IsComicsView;
         RefreshImages();
@@ -351,6 +383,7 @@ public partial class MainViewModel : ObservableObject {
         suppressFilterChange = true;
         SelectedQuickFilter = null;
         SelectedTag = null;
+        SelectedArtist = null;
         suppressFilterChange = false;
         ShowComics = false;
         RefreshImages();
@@ -361,6 +394,18 @@ public partial class MainViewModel : ObservableObject {
         suppressFilterChange = true;
         SelectedQuickFilter = null;
         SelectedCategory = null;
+        SelectedArtist = null;
+        suppressFilterChange = false;
+        ShowComics = false;
+        RefreshImages();
+    }
+
+    partial void OnSelectedArtistChanged(ArtistCount? value) {
+        if (value == null || suppressFilterChange) return;
+        suppressFilterChange = true;
+        SelectedQuickFilter = null;
+        SelectedCategory = null;
+        SelectedTag = null;
         suppressFilterChange = false;
         ShowComics = false;
         RefreshImages();
@@ -388,6 +433,13 @@ public partial class MainViewModel : ObservableObject {
                                        : selection.Skip(1).Aggregate((IEnumerable<string>)selection[0].Model.Tags, (common, item) => common.Intersect(item.Model.Tags));
         Replace(DetailTags, tags.OrderBy(tag => tag));
         Replace(SuggestedTags, selection.SelectMany(item => item.Model.SuggestedTags).Distinct().OrderBy(tag => tag));
+
+        IEnumerable<string> artists = selection.Count == 0
+                                          ? []
+                                          : selection.Skip(1).Aggregate((IEnumerable<string>)selection[0].Model.Artists,
+                                                                        (common, item) => common.Intersect(item.Model.Artists, StringComparer.OrdinalIgnoreCase));
+        Replace(DetailArtists, artists.OrderBy(artist => artist, StringComparer.OrdinalIgnoreCase));
+        Replace(SuggestedArtists, selection.SelectMany(item => item.Model.SuggestedArtists).Distinct(StringComparer.OrdinalIgnoreCase).Order());
         SuggestedCategory = selection.Select(item => item.Model.SuggestedCategory).FirstOrDefault(category => category != null);
 
         List<string?> categories = [.. selection.Select(item => item.Model.Category).Distinct()];
@@ -438,6 +490,34 @@ public partial class MainViewModel : ObservableObject {
 
     [RelayCommand]
     private void RemoveTag(string tag) => Library.RemoveTags(SelectedIds, [tag]);
+
+    [RelayCommand]
+    private void AddArtist() {
+        List<string> artists = [.. NewArtistText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+        if (artists.Count == 0 || selection.Count == 0) return;
+        Library.AddArtists(SelectedIds, artists);
+        NewArtistText = string.Empty;
+    }
+
+    [RelayCommand]
+    private void RemoveArtist(string artist) => Library.RemoveArtists(SelectedIds, [artist]);
+
+    [RelayCommand]
+    private void AcceptSuggestedArtist(string artist) => Library.AcceptSuggestedArtist(SelectedIds, artist);
+
+    [RelayCommand]
+    private void RenameArtist(ArtistCount? artist) {
+        if (artist != null && InputDialog.Show(Owner, "Rename artist", "New name (an existing artist merges the two)", artist.Name) is { Length: > 0 } name) {
+            Library.RenameArtist(artist.Name, name);
+        }
+    }
+
+    [RelayCommand]
+    private void DeleteArtist(ArtistCount? artist) {
+        if (artist != null && Confirm($"Remove artist \"{artist.Name}\" from {artist.Count:N0} images?")) {
+            Library.DeleteArtist(artist.Name);
+        }
+    }
 
     [RelayCommand]
     private void ApplyCategory() {
@@ -691,6 +771,35 @@ public partial class MainViewModel : ObservableObject {
         }
     }
 
+    /// <summary>
+    /// Puts every page of a comic in a new or existing category and, unless asked to keep it, removes the comic grouping.
+    /// </summary>
+    [RelayCommand]
+    private void ConvertComicToCategory(ComicItemViewModel? comic) {
+        if (comic == null || CategoryPickerDialog.Show(Owner, comic.Title, AllCategoryNames) is not CategoryChoice choice) {
+            return;
+        }
+
+        List<int> pages = [.. Library.GetComicPages(comic.Model.Id).Select(page => page.Id)];
+        Library.SetCategory(pages, choice.Category);
+        if (choice.KeepComic) {
+            comic.Model.Category = choice.Category;
+            Library.UpdateComic(comic.Model);
+        }
+        else {
+            Library.DeleteComic(comic.Model.Id);
+        }
+
+        Growl.Success($"{pages.Count:N0} pages of \"{comic.Title}\" are now in the \"{choice.Category}\" category.");
+    }
+
+    [RelayCommand]
+    private void ConvertCurrentComicToCategory() {
+        if (Current?.Model.ComicId is int comicId && Comics.FirstOrDefault(comic => comic.Model.Id == comicId) is { } comic) {
+            ConvertComicToCategory(comic);
+        }
+    }
+
     #endregion
 
     #region Import, viewer, settings
@@ -847,7 +956,7 @@ public partial class MainViewModel : ObservableObject {
     }
 
     private bool Confirm(string message) =>
-        MessageBox.Show(message, "Image Organizer", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
+        MessageBox.Show(message, "PixShelf", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
 
     #endregion
 }

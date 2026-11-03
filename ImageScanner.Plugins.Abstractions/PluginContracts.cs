@@ -120,9 +120,23 @@ public interface ITagSuggestionProvider {
 /// <param name="ExistingTags">Tags already used in the library, so providers can prefer reusing them.</param>
 /// <param name="Categories">Categories already defined in the library.</param>
 /// <param name="MaxTags">Upper bound on how many tags to return.</param>
-public record TagSuggestionRequest(LibraryImage Image, byte[] ImageJpeg, IReadOnlyCollection<string> ExistingTags, IReadOnlyCollection<string> Categories, int MaxTags);
+public record TagSuggestionRequest(LibraryImage Image, byte[] ImageJpeg, IReadOnlyCollection<string> ExistingTags, IReadOnlyCollection<string> Categories, int MaxTags) {
+    /// <summary>
+    /// The artist, when the host already knows it from the file name. Providers can skip their own
+    /// artist detection then.
+    /// </summary>
+    public string? KnownArtist { get; init; }
 
-public record TagSuggestion(IReadOnlyList<string> Tags, string? Category = null, string? Description = null);
+    /// <summary>Artists already in the library, so providers can match their spelling.</summary>
+    public IReadOnlyCollection<string> ExistingArtists { get; init; } = [];
+}
+
+public record TagSuggestion(IReadOnlyList<string> Tags, string? Category = null, string? Description = null) {
+    /// <summary>
+    /// The artist(s) the provider identified, e.g. from a signature or watermark. Empty when unknown.
+    /// </summary>
+    public IReadOnlyList<string> Artists { get; init; } = [];
+}
 
 /// <summary>
 /// Optional: implemented by a plugin whose main purpose is AI tagging, so the first-run wizard and

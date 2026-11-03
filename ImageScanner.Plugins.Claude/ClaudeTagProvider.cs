@@ -23,6 +23,8 @@ internal sealed class ClaudeTagProvider(ClaudePlugin plugin, IPluginHost host) :
         and only invent new tags when nothing existing describes the image. Choose a category only if one of
         the existing categories clearly fits, or propose a short new category name when none exist.
         If the image is a comic, manga or illustration page, include that as a tag.
+        For "artist", give the artist only when a signature, watermark or credit in the image names them (or the
+        known artist you are told); otherwise return an empty string. Never guess an artist from style alone.
         """;
 
     private static readonly Dictionary<string, JsonElement> ResponseSchema = new() {
@@ -30,9 +32,10 @@ internal sealed class ClaudeTagProvider(ClaudePlugin plugin, IPluginHost host) :
         ["properties"] = JsonSerializer.SerializeToElement(new {
             tags = new { type = "array", items = new { type = "string" } },
             category = new { type = "string" },
-            description = new { type = "string" }
+            description = new { type = "string" },
+            artist = new { type = "string" }
         }),
-        ["required"] = JsonSerializer.SerializeToElement(new[] { "tags", "category", "description" }),
+        ["required"] = JsonSerializer.SerializeToElement(new[] { "tags", "category", "description", "artist" }),
         ["additionalProperties"] = JsonSerializer.SerializeToElement(false)
     };
 
@@ -68,6 +71,8 @@ internal sealed class ClaudeTagProvider(ClaudePlugin plugin, IPluginHost host) :
              Folder: {request.Image.Folder}
              Existing tag vocabulary: {vocabulary}
              Existing categories: {categories}
+             Known artist: {request.KnownArtist ?? "(unknown)"}
+             Artists already in the library: {(request.ExistingArtists.Count > 0 ? string.Join(", ", request.ExistingArtists.Take(200)) : "(none yet)")}
              """;
 
         BetaMessage response;
@@ -94,7 +99,9 @@ internal sealed class ClaudeTagProvider(ClaudePlugin plugin, IPluginHost host) :
         return new TagSuggestion(
             [.. result.Tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).Take(request.MaxTags)],
             string.IsNullOrWhiteSpace(result.Category) ? null : result.Category,
-            string.IsNullOrWhiteSpace(result.Description) ? null : result.Description);
+            string.IsNullOrWhiteSpace(result.Description) ? null : result.Description) {
+            Artists = string.IsNullOrWhiteSpace(result.Artist) ? [] : [result.Artist.Trim()]
+        };
     }
 
     private static Task<BetaMessage> SendAsync(AnthropicClient client, string model, string effort, string prompt, byte[] imageJpeg, CancellationToken cancellationToken) =>
@@ -127,5 +134,5 @@ internal sealed class ClaudeTagProvider(ClaudePlugin plugin, IPluginHost host) :
             ]
         }, cancellationToken);
 
-    private sealed record ClaudeTagResult(List<string> Tags, string? Category, string? Description);
+    private sealed record ClaudeTagResult(List<string> Tags, string? Category, string? Description, string? Artist);
 }

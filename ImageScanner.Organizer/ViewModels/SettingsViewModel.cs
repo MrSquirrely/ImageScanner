@@ -73,13 +73,18 @@ public partial class PluginSettingViewModel(PluginSetting definition, string? va
 /// One plugin card, on the Settings → Plugins tab or the first-run wizard. In Settings (<paramref name="applyImmediately"/>)
 /// the switch is saved at once; the wizard reads <see cref="IsEnabled"/> when it finishes instead.
 /// </summary>
-public partial class PluginEntryViewModel(PluginInfo info, PluginManager manager, bool applyImmediately = true, bool? initiallyEnabled = null) : ObservableObject {
+/// <param name="draftSettings">
+/// When set (the first-run wizard), the settings dialog edits these unsaved values instead of the saved ones.
+/// </param>
+public partial class PluginEntryViewModel(PluginInfo info, PluginManager manager, bool applyImmediately = true, bool? initiallyEnabled = null,
+                                          IReadOnlyList<PluginSettingViewModel>? draftSettings = null) : ObservableObject {
     private bool isEnabled = initiallyEnabled ?? info.IsEnabled;
 
     public PluginInfo Info { get; } = info;
     public string Name => Info.Plugin.Name;
     public string Description => Info.Plugin.Description;
     public string Byline => Info.IsBuiltIn ? $"Built-in · v{Info.Plugin.Version}" : $"{Info.Plugin.Author} · v{Info.Plugin.Version}";
+    public bool IsOfficial => Info.IsOfficial;
     public bool HasSettings => Info.HasSettings;
 
     public bool IsEnabled {
@@ -87,14 +92,14 @@ public partial class PluginEntryViewModel(PluginInfo info, PluginManager manager
         set {
             if (SetProperty(ref isEnabled, value) && applyImmediately) {
                 manager.SetEnabled(Info, value);
-                Growl.Info("Restart Image Organizer to apply plugin changes.");
+                Growl.Info("Restart PixShelf to apply plugin changes.");
             }
         }
     }
 
     [RelayCommand(CanExecute = nameof(HasSettings))]
     private void OpenSettings() {
-        PluginSettingsWindow window = new(new PluginSettingsViewModel(Info, manager)) {
+        PluginSettingsWindow window = new(new PluginSettingsViewModel(Info, manager, draftSettings)) {
             Owner = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>().FirstOrDefault(window => window.IsActive)
         };
         window.ShowDialog();
@@ -102,18 +107,28 @@ public partial class PluginEntryViewModel(PluginInfo info, PluginManager manager
 }
 
 /// <summary>
-/// The settings dialog for one plugin. Values are written only when the user saves.
+/// The settings dialog for one plugin. Values are written only when the user saves: to the saved
+/// settings, or back into <paramref name="draft"/> when editing the wizard's unsaved values.
 /// </summary>
-public partial class PluginSettingsViewModel(PluginInfo info, PluginManager manager) {
+public partial class PluginSettingsViewModel(PluginInfo info, PluginManager manager, IReadOnlyList<PluginSettingViewModel>? draft = null) {
     public PluginInfo Info { get; } = info;
     public string Title => $"{Info.Plugin.Name} settings";
 
     public IReadOnlyList<PluginSettingViewModel> Settings { get; } =
-        info.Plugin is IConfigurablePlugin configurable
+        draft != null ? [.. draft.Select(setting => new PluginSettingViewModel(setting.Definition, setting.Value))]
+        : info.Plugin is IConfigurablePlugin configurable
             ? [.. configurable.Settings.Select(setting => new PluginSettingViewModel(setting, manager.GetSetting(info.Plugin, setting.Key)))]
             : [];
 
     public void Save() {
+        if (draft != null) {
+            for (int i = 0; i < draft.Count; i++) {
+                draft[i].Value = Settings[i].Value;
+            }
+
+            return;
+        }
+
         foreach (PluginSettingViewModel setting in Settings) {
             manager.SetSetting(Info.Plugin, setting.Definition.Key, setting.Value);
         }
@@ -128,16 +143,19 @@ public partial class SettingsViewModel : ObservableObject {
         this.settings = settings;
         this.library = library;
         Providers = [.. plugins.TagProviders];
-        SelectedProvider = plugins.ActiveTagProvider;
-        DarkTheme = settings.DarkTheme;
-        UseSystemViewer = settings.UseSystemViewer;
-        MaxSuggestedTags = settings.MaxSuggestedTags;
-        AiConcurrency = settings.AiConcurrency;
-        SuggestTagsOnImport = settings.SuggestTagsOnImport;
-        AutoApplySuggestions = settings.AutoApplySuggestions;
-        DetectComics = settings.DetectComics;
-        IgnoredFolders = settings.IgnoredFolders;
-        LibraryPath = settings.LibraryPath;
+        Sheet = new SettingsSheet {
+            EngineChoices = [.. Providers.Select(provider => provider.DisplayName)],
+            DarkTheme = settings.DarkTheme,
+            OpenImagesWith = settings.UseSystemViewer ? SettingsSheet.WindowsDefaultApp : SettingsSheet.BuiltInViewer,
+            LibraryPath = settings.LibraryPath,
+            DetectComics = settings.DetectComics,
+            IgnoredFolders = settings.IgnoredFolders,
+            TaggingEngine = plugins.ActiveTagProvider?.DisplayName,
+            SuggestTagsOnImport = settings.SuggestTagsOnImport,
+            AutoApplySuggestions = settings.AutoApplySuggestions,
+            MaxSuggestedTags = settings.MaxSuggestedTags,
+            AiConcurrency = settings.AiConcurrency
+        };
         PluginEntries = [.. plugins.Plugins.Select(info => new PluginEntryViewModel(info, plugins))];
         Sources = [.. library.GetSources()];
     }
@@ -147,68 +165,25 @@ public partial class SettingsViewModel : ObservableObject {
     public ObservableCollection<ScanSource> Sources { get; }
     public string PluginFolder => PluginManager.PluginDirectories.Last();
 
-    [ObservableProperty]
-    public partial ITagSuggestionProvider? SelectedProvider { get; set; }
-
-    [ObservableProperty]
-    public partial bool DarkTheme { get; set; }
-
-    [ObservableProperty]
-    public partial bool UseSystemViewer { get; set; }
-
-    [ObservableProperty]
-    public partial int MaxSuggestedTags { get; set; }
-
-    [ObservableProperty]
-    public partial int AiConcurrency { get; set; }
-
-    [ObservableProperty]
-    public partial bool SuggestTagsOnImport { get; set; }
-
-    [ObservableProperty]
-    public partial bool AutoApplySuggestions { get; set; }
-
-    [ObservableProperty]
-    public partial bool DetectComics { get; set; }
-
-    [ObservableProperty]
-    public partial string IgnoredFolders { get; set; }
-
-    [ObservableProperty]
-    public partial string LibraryPath { get; set; }
-
-    partial void OnDarkThemeChanged(bool value) => App.ApplyTheme(value);
+    /// <summary>The General tab's PropertyGrid edits this; nothing is applied until Save.</summary>
+    public SettingsSheet Sheet { get; }
 
     [RelayCommand]
     private void Save() {
-        settings.DarkTheme = DarkTheme;
-        settings.UseSystemViewer = UseSystemViewer;
-        settings.ActiveTagProviderId = SelectedProvider?.Id;
-        settings.MaxSuggestedTags = Math.Clamp(MaxSuggestedTags, 1, 50);
-        settings.AiConcurrency = Math.Clamp(AiConcurrency, 1, 16);
-        settings.SuggestTagsOnImport = SuggestTagsOnImport;
-        settings.AutoApplySuggestions = AutoApplySuggestions;
-        settings.DetectComics = DetectComics;
-        settings.IgnoredFolders = IgnoredFolders;
+        settings.DarkTheme = Sheet.DarkTheme;
+        settings.UseSystemViewer = Sheet.OpenImagesWith == SettingsSheet.WindowsDefaultApp;
+        settings.ActiveTagProviderId = Providers.FirstOrDefault(provider => provider.DisplayName == Sheet.TaggingEngine)?.Id ?? settings.ActiveTagProviderId;
+        settings.MaxSuggestedTags = Math.Clamp(Sheet.MaxSuggestedTags, 1, 50);
+        settings.AiConcurrency = Math.Clamp(Sheet.AiConcurrency, 1, 16);
+        settings.SuggestTagsOnImport = Sheet.SuggestTagsOnImport;
+        settings.AutoApplySuggestions = Sheet.AutoApplySuggestions;
+        settings.DetectComics = Sheet.DetectComics;
+        settings.IgnoredFolders = Sheet.IgnoredFolders;
 
-        bool libraryChanged = !string.Equals(settings.LibraryPath, LibraryPath, StringComparison.OrdinalIgnoreCase);
-        settings.LibraryPath = LibraryPath;
+        bool libraryChanged = !string.Equals(settings.LibraryPath, Sheet.LibraryPath, StringComparison.OrdinalIgnoreCase);
+        settings.LibraryPath = Sheet.LibraryPath;
         settings.Save();
         Growl.Success(libraryChanged ? "Settings saved. Restart to open the new library file." : "Settings saved.");
-    }
-
-    [RelayCommand]
-    private void BrowseLibrary() {
-        Microsoft.Win32.SaveFileDialog dialog = new() {
-            Title = "Choose library database",
-            Filter = "Library database (*.db)|*.db",
-            FileName = Path.GetFileName(LibraryPath),
-            OverwritePrompt = false
-        };
-
-        if (dialog.ShowDialog() == true) {
-            LibraryPath = dialog.FileName;
-        }
     }
 
     /// <summary>
@@ -220,7 +195,7 @@ public partial class SettingsViewModel : ObservableObject {
     private void RerunSetup() {
         settings.FirstRunCompleted = false;
         settings.Save();
-        Growl.Info("The setup wizard will open the next time you start Image Organizer.");
+        Growl.Info("The setup wizard will open the next time you start PixShelf.");
     }
 
     [RelayCommand]

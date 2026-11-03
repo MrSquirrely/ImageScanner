@@ -14,7 +14,7 @@ public sealed class BuiltInPlugin : IPlugin {
     public string Id => "builtin";
     public string Name => "Built-in features";
     public string Description => "Windows Explorer actions: open in the default app, show in Explorer, copy file path.";
-    public string Author => "ImageScanner";
+    public string Author => "PixShelf";
     public Version Version => new(1, 0);
     public string Icon => "\uE838";
 

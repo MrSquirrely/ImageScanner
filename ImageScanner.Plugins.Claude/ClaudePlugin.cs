@@ -12,7 +12,7 @@ public sealed class ClaudePlugin : IPlugin, IConfigurablePlugin, ITagProviderPlu
     public string Id => "anthropic.claude";
     public string Name => "Claude AI tagging";
     public string Description => "Suggests tags, a category and a description for images using Anthropic's Claude.";
-    public string Author => "ImageScanner";
+    public string Author => "PixShelf";
     public Version Version => new(1, 0);
     public string Icon => "\uE753";
 

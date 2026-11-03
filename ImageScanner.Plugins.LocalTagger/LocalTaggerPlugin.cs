@@ -23,6 +23,12 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
     internal const string CaptionPromptSetting = "CaptionPrompt";
     internal const string ResponseTimeoutSetting = "ResponseTimeoutSeconds";
     internal const string ShowConsoleSetting = "ShowKoboldCppConsole";
+    internal const string FindArtistSetting = "FindArtist";
+    internal const string ArtistPromptSetting = "ArtistPrompt";
+
+    internal const string DefaultArtistPrompt =
+        "Is there an artist signature, watermark or credit in this image? If there is, write only the artist's name exactly as it appears. " +
+        "If there isn't, write only \"none\".";
 
     internal const string TagsAndCaptionMode = "Tags and caption";
     internal const string TagsOnlyMode = "Tags only";
@@ -43,7 +49,7 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
     public string Id => "local.tagger";
     public string Name => "Local AI tagging";
     public string Description => "Tags images with a vision model running on this PC through KoboldCpp. Free and private: images never leave your computer.";
-    public string Author => "ImageScanner";
+    public string Author => "PixShelf";
     public Version Version => new(1, 0);
     public string Icon => "\uE977";
 
@@ -73,6 +79,11 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
         new(TagPromptSetting, "Tag prompt", PluginSettingKind.MultilineText, DefaultTagPrompt,
             "Sent with each image. The model should answer with a comma-separated list of tags.",
             Presets: [new("Default", DefaultTagPrompt), new("Furry (e621)", E621TagPrompt), new("Anime (Danbooru)", DanbooruTagPrompt)]),
+        new(FindArtistSetting, "Find the artist", PluginSettingKind.Toggle, "true",
+            "Asks the model for a signature or watermark (one short extra request). Skipped when the file name already names the artist, " +
+            "as Danbooru and DeviantArt downloads do."),
+        new(ArtistPromptSetting, "Artist prompt", PluginSettingKind.MultilineText, DefaultArtistPrompt,
+            "The model should answer with just a name, or \"none\".", Presets: [new("Default", DefaultArtistPrompt)]),
         new(CaptionPromptSetting, "Caption prompt", PluginSettingKind.MultilineText, DefaultCaptionPrompt,
             "Used for the image description when generating tags and caption.",
             Presets: [new("Default", DefaultCaptionPrompt)]),

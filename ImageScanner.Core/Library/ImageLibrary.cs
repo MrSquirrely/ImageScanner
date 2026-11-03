@@ -10,6 +10,7 @@ public enum LibraryChangeKind {
     Categories,
     Comics,
     Sources,
+    Artists,
     All
 }
 
@@ -59,6 +60,9 @@ public sealed partial class ImageLibrary : IDisposable {
         sources = database.GetCollection<ScanSource>(SourcesCollection);
 
         foreach (LibraryImage image in images.FindAll()) {
+            // Records saved before artists existed load with null lists
+            image.Artists ??= [];
+            image.SuggestedArtists ??= [];
             imagesById[image.Id] = image;
             imagesByPath[image.FilePath] = image;
         }
@@ -355,15 +359,94 @@ public sealed partial class ImageLibrary : IDisposable {
 
     #endregion
 
+    #region Artists
+
+    /// <summary>
+    /// Tidies an artist name ("stanley_lau" → "stanley lau") while keeping its capitalization.
+    /// </summary>
+    public static string NormalizeArtist(string artist) => WhitespaceRegex().Replace(artist.Replace('_', ' ').Trim(), " ");
+
+    public List<ArtistCount> GetArtistCounts() {
+        lock (sync) {
+            Dictionary<string, int> counts = new(StringComparer.OrdinalIgnoreCase);
+            foreach (LibraryImage image in imagesById.Values) {
+                foreach (string artist in image.Artists) {
+                    counts[artist] = counts.GetValueOrDefault(artist) + 1;
+                }
+            }
+
+            return [.. counts.Select(pair => new ArtistCount(pair.Key, pair.Value))
+                             .OrderBy(artist => artist.Name, StringComparer.OrdinalIgnoreCase)];
+        }
+    }
+
+    public void AddArtists(IEnumerable<int> ids, IEnumerable<string> artists) {
+        List<string> added = MatchKnownArtists(artists);
+        Mutate(ids, image => image.Artists = DistinctArtists(image.Artists.Concat(added)), LibraryChangeKind.Artists);
+    }
+
+    public void RemoveArtists(IEnumerable<int> ids, IEnumerable<string> artists) {
+        HashSet<string> remove = new(artists.Select(NormalizeArtist), StringComparer.OrdinalIgnoreCase);
+        Mutate(ids, image => image.Artists.RemoveAll(remove.Contains), LibraryChangeKind.Artists);
+    }
+
+    /// <summary>
+    /// Renames an artist everywhere. If the new name already exists the two are merged.
+    /// </summary>
+    public void RenameArtist(string oldName, string newName) {
+        string to = NormalizeArtist(newName);
+        if (to.Length == 0) {
+            return;
+        }
+
+        List<int> affected;
+        lock (sync) {
+            affected = [.. imagesById.Values.Where(image => image.Artists.Contains(oldName, StringComparer.OrdinalIgnoreCase)).Select(image => image.Id)];
+        }
+
+        Mutate(affected, image => image.Artists = DistinctArtists(image.Artists.Select(artist =>
+            string.Equals(artist, oldName, StringComparison.OrdinalIgnoreCase) ? to : artist)), LibraryChangeKind.Artists);
+    }
+
+    public void DeleteArtist(string name) {
+        List<int> affected;
+        lock (sync) {
+            affected = [.. imagesById.Values.Where(image => image.Artists.Contains(name, StringComparer.OrdinalIgnoreCase)).Select(image => image.Id)];
+        }
+
+        Mutate(affected, image => image.Artists.RemoveAll(artist => string.Equals(artist, name, StringComparison.OrdinalIgnoreCase)), LibraryChangeKind.Artists);
+    }
+
+    /// <summary>
+    /// Uses the spelling already in the library ("Stanley Lau") when a new name differs only in case.
+    /// </summary>
+    private List<string> MatchKnownArtists(IEnumerable<string> artists) {
+        Dictionary<string, string> known;
+        lock (sync) {
+            known = imagesById.Values.SelectMany(image => image.Artists)
+                              .GroupBy(artist => artist, StringComparer.OrdinalIgnoreCase)
+                              .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        return DistinctArtists(artists.Select(NormalizeArtist).Select(artist => known.GetValueOrDefault(artist, artist)));
+    }
+
+    private static List<string> DistinctArtists(IEnumerable<string> artists) =>
+        [.. artists.Select(NormalizeArtist).Where(artist => artist.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    #endregion
+
     #region AI suggestions
 
-    public void SetSuggestions(int id, IEnumerable<string> tags, string? category, string? suggestedBy) {
+    public void SetSuggestions(int id, IEnumerable<string> tags, string? category, string? suggestedBy, IEnumerable<string>? artists = null) {
+        List<string> suggestedArtists = artists == null ? [] : MatchKnownArtists(artists);
         lock (sync) {
             if (!imagesById.TryGetValue(id, out LibraryImage? image)) {
                 return;
             }
 
             // Only keep suggestions the image doesn't already have
+            image.SuggestedArtists = [.. suggestedArtists.Where(artist => !image.Artists.Contains(artist, StringComparer.OrdinalIgnoreCase))];
             image.SuggestedTags = [.. NormalizeTags(tags).Except(image.Tags)];
             image.SuggestedCategory = string.IsNullOrWhiteSpace(category) || string.Equals(category, image.Category, StringComparison.OrdinalIgnoreCase)
                                           ? null
@@ -384,6 +467,11 @@ public sealed partial class ImageLibrary : IDisposable {
         Mutate(ids, image => {
             IEnumerable<string> accepted = allowed == null ? image.SuggestedTags : image.SuggestedTags.Where(allowed.Contains);
             image.Tags = NormalizeTags(image.Tags.Concat(accepted));
+            if (allowed == null) {
+                image.Artists = DistinctArtists(image.Artists.Concat(image.SuggestedArtists));
+                image.SuggestedArtists = [];
+            }
+
             if (acceptCategory && !string.IsNullOrEmpty(image.SuggestedCategory)) {
                 image.Category = image.SuggestedCategory;
                 newCategories.Add(image.SuggestedCategory);
@@ -402,8 +490,18 @@ public sealed partial class ImageLibrary : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Accepts one suggested artist, leaving the image's other suggestions pending.
+    /// </summary>
+    public void AcceptSuggestedArtist(IEnumerable<int> ids, string artist) => Mutate(ids, image => {
+        if (image.SuggestedArtists.RemoveAll(suggested => string.Equals(suggested, artist, StringComparison.OrdinalIgnoreCase)) > 0) {
+            image.Artists = DistinctArtists(image.Artists.Append(artist));
+        }
+    }, LibraryChangeKind.Artists);
+
     public void RejectSuggestions(IEnumerable<int> ids) => Mutate(ids, image => {
         image.SuggestedTags = [];
+        image.SuggestedArtists = [];
         image.SuggestedCategory = null;
     });
 

@@ -77,6 +77,21 @@ public static partial class ResponseParser {
         return text.Length == 0 ? null : text;
     }
 
+    /// <summary>
+    /// Reads the reply to the artist prompt. Anything that isn't a short name ("none", "unknown",
+    /// "There is no signature…") means the model couldn't tell.
+    /// </summary>
+    public static string? ParseArtist(string? reply) {
+        string text = Whitespace().Replace(CleanReply(reply), " ").Trim();
+        text = LeadingArtistLabel().Replace(text, string.Empty).Trim().Trim('"', '\'', '.', '*', ' ');
+        if (text.Length is < 2 or > 40 || text.Split(' ').Length > 4 || text.Any(c => c is '.' or ',' or ':' or ';' or '!' or '?')) {
+            return null;
+        }
+
+        string[] notAnArtist = ["none", "unknown", "n/a", "no artist", "no signature", "not visible", "anonymous", "unsigned", "nothing", "no"];
+        return notAnArtist.Any(word => text.Equals(word, StringComparison.OrdinalIgnoreCase)) ? null : text;
+    }
+
     private static string CleanReply(string? reply) {
         if (string.IsNullOrWhiteSpace(reply)) {
             return string.Empty;
@@ -143,6 +158,9 @@ public static partial class ResponseParser {
 
     [GeneratedRegex(@"^\s*(here (is|are)[^:\n]*|caption|description)\s*:\s*", RegexOptions.IgnoreCase)]
     private static partial Regex LeadingCaptionLabel();
+
+    [GeneratedRegex(@"^(the )?(artist|signature|watermark|artist name)( is)?\s*[:\-]?\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex LeadingArtistLabel();
 
     [GeneratedRegex(@"^\s*(\d+[.)]|[-*•])\s+")]
     private static partial Regex ListMarker();

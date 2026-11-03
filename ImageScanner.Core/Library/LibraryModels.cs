@@ -20,12 +20,14 @@ public class LibraryImage {
 
     public string? Category { get; set; }
     public List<string> Tags { get; set; } = [];
+    public List<string> Artists { get; set; } = [];
     public string? Description { get; set; }
     public int Rating { get; set; }
     public bool IsFavorite { get; set; }
 
     // AI suggestions waiting for review
     public List<string> SuggestedTags { get; set; } = [];
+    public List<string> SuggestedArtists { get; set; } = [];
     public string? SuggestedCategory { get; set; }
     public string? SuggestedBy { get; set; }
 
@@ -38,7 +40,7 @@ public class LibraryImage {
     public string? ThumbnailId { get; set; }
 
     [BsonIgnore]
-    public bool HasPendingSuggestions => SuggestedTags.Count > 0 || !string.IsNullOrEmpty(SuggestedCategory);
+    public bool HasPendingSuggestions => SuggestedTags.Count > 0 || SuggestedArtists.Count > 0 || !string.IsNullOrEmpty(SuggestedCategory);
 
     [BsonIgnore]
     public string Dimensions => Width > 0 ? $"{Width} × {Height}" : string.Empty;
@@ -90,3 +92,5 @@ public class ScanSource {
 public record TagCount(string Name, int Count, string? Color);
 
 public record CategoryCount(string Name, int Count);
+
+public record ArtistCount(string Name, int Count);

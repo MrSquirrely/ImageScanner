@@ -48,7 +48,7 @@ public partial class App : Application {
             library = new ImageLibrary(libraryPath);
         }
         catch (Exception exception) {
-            HandyControl.Controls.MessageBox.Show($"Could not open the library at {libraryPath}:\n{exception.Message}", "Image Organizer",
+            HandyControl.Controls.MessageBox.Show($"Could not open the library at {libraryPath}:\n{exception.Message}", "PixShelf",
                                                   MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
@@ -74,18 +74,10 @@ public partial class App : Application {
     }
 
     /// <summary>
-    /// Swaps HandyControl's skin dictionary (light/dark). Theme.xaml uses DynamicResource so the UI updates live.
+    /// Switches HandyControls between light and dark. Its styles use DynamicResource, so the UI updates live.
     /// </summary>
-    public static void ApplyTheme(bool dark) {
-        ResourceDictionary skin = new() {
-            Source = new Uri($"pack://application:,,,/HandyControl;component/Themes/{(dark ? "SkinDark" : "SkinDefault")}.xaml")
-        };
-
-        Current.Resources.MergedDictionaries[0] = skin;
-        Current.Resources.MergedDictionaries[1] = new ResourceDictionary {
-            Source = new Uri("pack://application:,,,/HandyControl;component/Themes/Theme.xaml")
-        };
-    }
+    public static void ApplyTheme(bool dark) =>
+        HandyControl.Themes.ThemeManager.Current.ApplicationTheme = dark ? HandyControl.Themes.ApplicationTheme.Dark : HandyControl.Themes.ApplicationTheme.Light;
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) {
         LogError(e.Exception);
@@ -98,8 +90,8 @@ public partial class App : Application {
             return;
         }
 
-        HandyControl.Controls.MessageBox.Show($"Image Organizer couldn't start:\n{e.Exception.Message}\n\nDetails were written to {ErrorLogPath}.",
-                                              "Image Organizer", MessageBoxButton.OK, MessageBoxImage.Error);
+        HandyControl.Controls.MessageBox.Show($"PixShelf couldn't start:\n{e.Exception.Message}\n\nDetails were written to {ErrorLogPath}.",
+                                              "PixShelf", MessageBoxButton.OK, MessageBoxImage.Error);
         Current.Shutdown(1);
     }
 

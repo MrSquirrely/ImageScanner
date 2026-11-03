@@ -69,7 +69,14 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
                 caption = ResponseParser.ParseCaption(await server.ChatAsync(options, BuildPayload(jpeg, captionPrompt), cancellationToken));
             }
 
-            return new TagSuggestion([.. tags.Take(request.MaxTags)], Description: caption);
+            string? artist = request.KnownArtist;
+            bool findArtist = !bool.TryParse(Setting(LocalTaggerPlugin.FindArtistSetting), out bool find) || find;
+            if (artist == null && findArtist) {
+                string artistPrompt = Setting(LocalTaggerPlugin.ArtistPromptSetting) ?? LocalTaggerPlugin.DefaultArtistPrompt;
+                artist = ResponseParser.ParseArtist(await server.ChatAsync(options, BuildPayload(jpeg, artistPrompt), cancellationToken));
+            }
+
+            return new TagSuggestion([.. tags.Take(request.MaxTags)], Description: caption) { Artists = artist == null ? [] : [artist] };
         }
         finally {
             oneAtATime.Release();

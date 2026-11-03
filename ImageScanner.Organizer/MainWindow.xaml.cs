@@ -69,7 +69,28 @@ public partial class MainWindow {
         }
     }
 
-    private void FocusSearch_Executed(object sender, ExecutedRoutedEventArgs e) => SearchBox.Focus();
+    private void FocusSearch_Executed(object sender, ExecutedRoutedEventArgs e) {
+        // Focusing the AutoCompleteTextBox itself focuses its ComboBox shell; the caret lives in the template's text box
+        TextBox? input = FindChild<TextBox>(SearchBox);
+        if (input != null) {
+            input.Focus();
+            input.SelectAll();
+        }
+        else {
+            SearchBox.Focus();
+        }
+    }
+
+    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++) {
+            DependencyObject child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if ((child as T ?? FindChild<T>(child)) is T match) {
+                return match;
+            }
+        }
+
+        return null;
+    }
 
     #region Menus
 
@@ -103,6 +124,13 @@ public partial class MainWindow {
             if (Views.InputDialog.Show(this, "Add tags", "Tags (comma separated)") is { Length: > 0 } tags) {
                 viewModel.NewTagText = tags;
                 viewModel.AddTagCommand.Execute(null);
+            }
+        }));
+
+        menu.Items.Add(Item("Add artist…", () => {
+            if (Views.InputDialog.Show(this, "Add artist", "Artist name (comma separate several)") is { Length: > 0 } artists) {
+                viewModel.NewArtistText = artists;
+                viewModel.AddArtistCommand.Execute(null);
             }
         }));
 
@@ -152,6 +180,7 @@ public partial class MainWindow {
         menu.Items.Add(Item("Read", () => viewModel.OpenComicCommand.Execute(comic)));
         menu.Items.Add(Item("Show pages in gallery", () => viewModel.ShowComicPagesCommand.Execute(comic)));
         menu.Items.Add(Item("Rename…", () => viewModel.RenameComicCommand.Execute(comic)));
+        menu.Items.Add(Item("Convert to category…", () => viewModel.ConvertComicToCategoryCommand.Execute(comic)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Ungroup", () => viewModel.UngroupComicCommand.Execute(comic)));
     }
@@ -186,6 +215,24 @@ public partial class MainWindow {
             menu.Items.Add(Item($"Add \"{tag.Name}\" to selected images", () => {
                 viewModel.NewTagText = tag.Name;
                 viewModel.AddTagCommand.Execute(null);
+            }));
+        }
+    }
+
+    private void ArtistList_ContextMenuOpening(object sender, ContextMenuEventArgs e) {
+        ContextMenu menu = ArtistList.ContextMenu!;
+        menu.Items.Clear();
+        if (ArtistList.SelectedItem is not ArtistCount artist) {
+            e.Handled = true;
+            return;
+        }
+
+        menu.Items.Add(Item($"Rename or merge \"{artist.Name}\"…", () => viewModel.RenameArtistCommand.Execute(artist)));
+        menu.Items.Add(Item($"Delete \"{artist.Name}\"", () => viewModel.DeleteArtistCommand.Execute(artist)));
+        if (viewModel.HasSelection) {
+            menu.Items.Add(Item($"Add \"{artist.Name}\" to selected images", () => {
+                viewModel.NewArtistText = artist.Name;
+                viewModel.AddArtistCommand.Execute(null);
             }));
         }
     }
