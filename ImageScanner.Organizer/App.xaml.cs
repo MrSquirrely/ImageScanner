@@ -15,9 +15,19 @@ namespace ImageScanner.Organizer;
 public partial class App : Application {
     private ImageLibrary? library;
     private PluginManager? plugins;
+    private SingleInstance? singleInstance;
 
     protected override void OnStartup(StartupEventArgs e) {
         base.OnStartup(e);
+
+        singleInstance = SingleInstance.TryAcquire();
+        if (singleInstance == null) {
+            // Already running: that copy has been asked to come to the front
+            Shutdown();
+            return;
+        }
+
+        singleInstance.ListenForActivation(Dispatcher);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
         // HandyControl defaults to Chinese for built-in text (MessageBox buttons etc.)
@@ -72,6 +82,7 @@ public partial class App : Application {
     protected override void OnExit(ExitEventArgs e) {
         plugins?.ShutdownAll();
         library?.Dispose();
+        singleInstance?.Dispose();
         base.OnExit(e);
     }
 
