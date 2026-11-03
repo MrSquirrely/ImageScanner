@@ -56,10 +56,28 @@ if (-not $DryRun) {
     if ($LASTEXITCODE -ne 0) { throw "The GitHub CLI isn't signed in. Run 'gh auth login' first." }
 }
 
+# ImageSharp 4 refuses Release builds without its license. sixlabors.lic is git-ignored, so a git worktree
+# doesn't have it: also look in the main checkout. A key or file set in the environment wins.
+$licenseArgs = @()
+if (-not $env:SixLaborsLicenseKey -and -not $env:SixLaborsLicenseFile) {
+    $candidates = @(Join-Path $root "sixlabors.lic")
+    $commonDir = & git -C $root rev-parse --path-format=absolute --git-common-dir 2>$null
+    if ($LASTEXITCODE -eq 0 -and $commonDir) {
+        $candidates += Join-Path (Split-Path $commonDir -Parent) "sixlabors.lic"
+    }
+
+    $license = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $license) {
+        throw "No Six Labors license found (ImageSharp needs it for Release builds). Put sixlabors.lic in the repository root, or set the SixLaborsLicenseFile or SixLaborsLicenseKey environment variable."
+    }
+
+    $licenseArgs = @("-p:SixLaborsLicenseFile=$((Resolve-Path $license).Path)")
+}
+
 # 1. Build and hash
 $packages = foreach ($plugin in $plugins) {
     Write-Host "Building $($plugin.name)..."
-    & dotnet build (Join-Path $root "$($plugin.project)\$($plugin.project).csproj") -c Release -v q -nologo | Out-Host
+    & dotnet build (Join-Path $root "$($plugin.project)\$($plugin.project).csproj") -c Release -v q -nologo @licenseArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Building $($plugin.project) failed." }
     $zip = Join-Path $root "artifacts\plugins\$($plugin.project).zip"
     if (-not (Test-Path $zip)) { throw "The build didn't produce $zip." }
