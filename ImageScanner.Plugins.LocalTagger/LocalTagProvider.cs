@@ -16,6 +16,7 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
 
     private readonly SemaphoreSlim oneAtATime = new(1, 1);
     private string? cachedModel;
+    private bool visionConfirmed;
 
     public string Id => ProviderId;
     public string DisplayName => "Local AI (KoboldCpp)";
@@ -33,11 +34,24 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
         await oneAtATime.WaitAsync(cancellationToken);
         try {
             await server.EnsureRunningAsync(options, cancellationToken);
+            if (!visionConfirmed) {
+                // A text-only server still answers, describing an imagined picture for every image
+                if (await server.SupportsVisionAsync(options, cancellationToken) == false) {
+                    throw new TagProviderException(LocalServer.MissingVisionMessage, isConfigurationError: true);
+                }
+
+                visionConfirmed = true;
+            }
+
             cachedModel ??= Setting(LocalTaggerPlugin.ModelNameSetting) is { Length: > 0 } name
                                 ? name
                                 : await server.GetDefaultModelAsync(options, cancellationToken);
 
             byte[] jpeg = await Task.Run(() => PrepareImage(request, imageSize), cancellationToken);
+            if (jpeg.Length == 0) {
+                // Without an image the model would still answer, describing something it made up
+                throw new TagProviderException($"{request.Image.FileName} couldn't be read, so it wasn't sent to the local AI.");
+            }
 
             // Small models occasionally return nothing usable; one retry usually fixes it
             List<string> tags = [];

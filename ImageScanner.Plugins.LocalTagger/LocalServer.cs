@@ -31,6 +31,12 @@ public sealed class LocalServerOptions {
 public sealed class LocalServer : IDisposable {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
 
+    public const string MissingVisionMessage =
+        "The model has no vision projector (mmproj) loaded, so it can't see images and would make up descriptions. " +
+        "Download the mmproj .gguf that matches your model (it's usually on the same download page) and choose it under " +
+        "\"Vision projector\" in Settings → Plugins → Local AI tagging, or put it in the model's folder. " +
+        "If you start KoboldCpp yourself, pick the file in its Model Files → Vision mmproj box.";
+
     // Per-request deadlines come from LocalServerOptions.ResponseTimeout, so the client itself never times out
     private readonly HttpClient http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private readonly Lock logLock = new();
@@ -65,6 +71,11 @@ public sealed class LocalServer : IDisposable {
 
             if (!File.Exists(options.KoboldCppPath)) {
                 throw new TagProviderException($"KoboldCpp wasn't found at {options.KoboldCppPath}.", isConfigurationError: true);
+            }
+
+            // Without its projector a vision model never sees the image and invents a description; don't load 6 GB to find that out
+            if (options.ModelPath?.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase) == true && FindMmproj(options) == null) {
+                throw new TagProviderException(MissingVisionMessage, isConfigurationError: true);
             }
 
             if (startedProcess is not { HasExited: false }) {
@@ -123,6 +134,50 @@ public sealed class LocalServer : IDisposable {
                                               or OperationCanceledException && !cancellationToken.IsCancellationRequested) {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Whether the server can see images: KoboldCpp reports it in /api/extra/version. Null for servers
+    /// that don't say (llama.cpp, LM Studio, Ollama), which are trusted to reject images they can't read.
+    /// </summary>
+    public async Task<bool?> SupportsVisionAsync(LocalServerOptions options, CancellationToken cancellationToken) {
+        try {
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            using HttpRequestMessage request = CreateRequest(HttpMethod.Get, options, "api/extra/version");
+            using HttpResponseMessage response = await http.SendAsync(request, timeout.Token);
+            if (!response.IsSuccessStatusCode) {
+                return null;
+            }
+
+            JsonNode? body = await response.Content.ReadFromJsonAsync<JsonNode>(timeout.Token);
+            return body?["vision"] is JsonValue vision && vision.TryGetValue(out bool value) ? value : null;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidOperationException
+                                              or OperationCanceledException && !cancellationToken.IsCancellationRequested) {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The vision projector to load with a .gguf model: the configured one, or else an mmproj file
+    /// in the model's folder (downloads usually keep the pair together).
+    /// </summary>
+    public static string? FindMmproj(LocalServerOptions options) {
+        if (!string.IsNullOrWhiteSpace(options.MmprojPath)) {
+            return options.MmprojPath;
+        }
+
+        if (string.IsNullOrWhiteSpace(options.ModelPath) || Path.GetDirectoryName(options.ModelPath) is not { Length: > 0 } folder || !Directory.Exists(folder)) {
+            return null;
+        }
+
+        string model = Path.GetFullPath(options.ModelPath);
+        return Directory.EnumerateFiles(folder, "*.gguf")
+                        .Where(path => Path.GetFileName(path).Contains("mmproj", StringComparison.OrdinalIgnoreCase) &&
+                                       !string.Equals(Path.GetFullPath(path), model, StringComparison.OrdinalIgnoreCase))
+                        .Order(StringComparer.OrdinalIgnoreCase)
+                        .FirstOrDefault();
     }
 
     /// <summary>
@@ -251,9 +306,9 @@ public sealed class LocalServer : IDisposable {
             bool isConfig = options.ModelPath.EndsWith(".kcpps", StringComparison.OrdinalIgnoreCase);
             arguments.Add(isConfig ? "--config" : "--model");
             arguments.Add(Quote(options.ModelPath));
-            if (!isConfig && !string.IsNullOrWhiteSpace(options.MmprojPath)) {
+            if (!isConfig && FindMmproj(options) is { } mmproj) {
                 arguments.Add("--mmproj");
-                arguments.Add(Quote(options.MmprojPath));
+                arguments.Add(Quote(mmproj));
             }
         }
 

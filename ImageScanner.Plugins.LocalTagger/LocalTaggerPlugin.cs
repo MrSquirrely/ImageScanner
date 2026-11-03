@@ -59,8 +59,9 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
         new(ModelPathSetting, "Model or KoboldCpp config (optional)", PluginSettingKind.FilePath,
             Description: "A .kcpps launch config or a .gguf vision model, passed to KoboldCpp when it starts it. Leave empty to choose in KoboldCpp's own window.",
             FileFilter: "KoboldCpp config or model (*.kcpps;*.gguf)|*.kcpps;*.gguf|KoboldCpp config (*.kcpps)|*.kcpps|Model (*.gguf)|*.gguf"),
-        new(MmprojPathSetting, "Vision projector .gguf (optional)", PluginSettingKind.FilePath,
-            Description: "The mmproj file that pairs with a .gguf model. Not needed with a .kcpps config.",
+        new(MmprojPathSetting, "Vision projector (mmproj) .gguf", PluginSettingKind.FilePath,
+            Description: "Required with a .gguf model: without it the model can't see images. Download the mmproj file that matches your model. " +
+                         "Leave empty to use one in the model's folder; not needed with a .kcpps config.",
             FileFilter: "Vision projector (*mmproj*.gguf)|*mmproj*.gguf|Model files (*.gguf)|*.gguf"),
         new(ShowConsoleSetting, "Show KoboldCpp's console window", PluginSettingKind.Toggle, "false",
             "Only applies when the app starts KoboldCpp. Hidden by default because clicking inside a console window pauses the program; output goes to koboldcpp.log in the plugin's data folder."),
