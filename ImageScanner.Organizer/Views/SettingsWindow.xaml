@@ -111,31 +111,7 @@
                                             <TextBlock Text="{Binding Info.Error}" TextWrapping="Wrap" Foreground="{DynamicResource DangerBrush}"
                                                        Visibility="{Binding Info.Error, Converter={StaticResource NullToVisibility}}" />
 
-                                            <ItemsControl ItemsSource="{Binding Settings}" Margin="0,8,0,0" Visibility="{Binding HasSettings, Converter={StaticResource BoolToVisibility}}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate DataType="{x:Type vm:PluginSettingViewModel}">
-                                                        <StackPanel Margin="0,6,0,0">
-                                                            <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                                                            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0"
-                                                                     Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}"
-                                                                     AutomationProperties.Name="{Binding Label}" />
-                                                            <hc:PasswordBox IsSafeEnabled="False" UnsafePassword="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                            ShowEyeButton="True" Margin="0,4,0,0"
-                                                                            Visibility="{Binding IsSecret, Converter={StaticResource BoolToVisibility}}"
-                                                                            AutomationProperties.Name="{Binding Label}" />
-                                                            <ToggleButton Style="{StaticResource ToggleButtonSwitch}" HorizontalAlignment="Left" Margin="0,4,0,0"
-                                                                          IsChecked="{Binding BoolValue}"
-                                                                          Visibility="{Binding IsToggle, Converter={StaticResource BoolToVisibility}}"
-                                                                          AutomationProperties.Name="{Binding Label}" />
-                                                            <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Value}" Margin="0,4,0,0" Width="200" HorizontalAlignment="Left"
-                                                                      Visibility="{Binding IsChoice, Converter={StaticResource BoolToVisibility}}"
-                                                                      AutomationProperties.Name="{Binding Label}" />
-                                                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0"
-                                                                       Foreground="{DynamicResource SecondaryTextBrush}"
-                                                                       Visibility="{Binding Description, Converter={StaticResource NullToVisibility}}" />
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
+                                            <ItemsControl ItemsSource="{Binding Settings}" ItemTemplate="{StaticResource PluginSettingTemplate}" Margin="0,8,0,0" Visibility="{Binding HasSettings, Converter={StaticResource BoolToVisibility}}">
                                             </ItemsControl>
                                         </StackPanel>
                                     </Border>

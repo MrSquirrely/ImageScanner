@@ -29,7 +29,7 @@ public partial class PluginInfo(IPlugin plugin, string source, bool isBuiltIn) :
 }
 
 /// <summary>
-/// Discovers, loads and hosts plugins. Built-in features (Claude tagging, Explorer actions) are
+/// Discovers, loads and hosts plugins. Built-in features (Explorer actions) are
 /// registered through the same API third-party plugins use.
 /// </summary>
 public sealed class PluginManager(AppSettings settings) : IPluginHost {

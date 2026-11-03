@@ -59,24 +59,43 @@
             </StackPanel>
 
             <!-- 2: AI tagging -->
-            <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVisibility}, ConverterParameter=2}">
-                <TextBlock Text="AI tag suggestions" FontSize="20" FontWeight="SemiBold" />
-                <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
-                           Text="Claude can look at each image and suggest tags, a category and a short description. A downscaled copy of each image is sent to Anthropic, and each image is one paid API request." />
-                <CheckBox Margin="0,18,0,0" Content="Use AI tag suggestions (Claude)" IsChecked="{Binding EnableAi}" FontSize="14" />
-                <StackPanel Margin="24,10,0,0" IsEnabled="{Binding EnableAi}">
-                    <TextBlock Text="Anthropic API key" FontWeight="SemiBold" />
-                    <hc:PasswordBox Margin="0,4,0,0" IsSafeEnabled="False" ShowEyeButton="True"
-                                    UnsafePassword="{Binding ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                    AutomationProperties.Name="Anthropic API key" />
-                    <TextBlock Margin="0,4,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
-                               Text="Stored encrypted for your Windows account. Get a key at console.anthropic.com. You can also add it later." />
-                    <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource SuccessBrush}" Text="ANTHROPIC_API_KEY is set; it will be used if you leave this empty."
-                               Visibility="{Binding HasEnvironmentKey, Converter={StaticResource BoolToVisibility}}" />
-                    <CheckBox Margin="0,14,0,0" Content="Suggest tags automatically for newly imported images" IsChecked="{Binding SuggestOnImport}" />
+            <DockPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVisibility}, ConverterParameter=2}">
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="AI tag suggestions" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Margin="0,8,0,10" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                               Text="An AI engine can look at each image and suggest tags, a category and a short description. Engines come from plugins; pick one now or later in Settings." />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" IsEnabled="{Binding UsesAi}">
+                    <CheckBox Content="Suggest tags automatically for newly imported images" IsChecked="{Binding SuggestOnImport}" />
                     <CheckBox Margin="0,8,0,0" Content="Apply suggestions immediately (otherwise review them first)" IsChecked="{Binding AutoApply}" />
                 </StackPanel>
-            </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="260" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ListBox ItemsSource="{Binding TaggingEngines}" SelectedItem="{Binding SelectedEngine}" AutomationProperties.Name="AI tagging engine">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:TaggingEngineOption}">
+                                <StackPanel Margin="0,4">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <!-- Opacity instead of a fixed brush keeps it readable on the selected (blue) row -->
+                                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontSize="11" Opacity="0.75" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                    <ScrollViewer Grid.Column="1" Margin="16,0,0,0" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding SelectedEngine.Settings}" ItemTemplate="{StaticResource PluginSettingTemplate}"
+                                      AutomationProperties.Name="Engine settings" />
+                    </ScrollViewer>
+                </Grid>
+            </DockPanel>
 
             <!-- 3: Viewing -->
             <StackPanel Visibility="{Binding StepIndex, Converter={StaticResource IndexToVisibility}, ConverterParameter=3}">

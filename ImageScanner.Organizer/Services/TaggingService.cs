@@ -1,5 +1,3 @@
-using Anthropic.Exceptions;
-
 using ImageScanner.Core.Library;
 using ImageScanner.Organizer.Plugins;
 using ImageScanner.Plugins;
@@ -19,7 +17,7 @@ public sealed class TaggingService(ImageLibrary library, PluginManager plugins, 
         ITagSuggestionProvider provider = plugins.ActiveTagProvider
                                           ?? throw new InvalidOperationException("No AI tagging provider is available. Enable one in Settings.");
         if (!provider.IsConfigured) {
-            throw new InvalidOperationException($"{provider.DisplayName} isn't configured yet. Open Settings to add your API key.");
+            throw new InvalidOperationException($"{provider.DisplayName} isn't set up yet. Configure it under Settings → Plugins.");
         }
 
         List<string> vocabulary = library.GetAllTagNames();
@@ -51,7 +49,7 @@ public sealed class TaggingService(ImageLibrary library, PluginManager plugins, 
                     Interlocked.CompareExchange(ref firstError, exception.Message, null);
 
                     // A bad key or missing configuration will fail every image; stop instead of burning through the batch
-                    if (exception is AnthropicUnauthorizedException or AnthropicForbiddenException or InvalidOperationException) {
+                    if (exception is TagProviderException { IsConfigurationError: true } or InvalidOperationException) {
                         await abort.CancelAsync();
                     }
                 }

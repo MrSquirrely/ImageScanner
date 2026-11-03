@@ -34,7 +34,8 @@ public class AppSettings {
     public string IgnoredFolders { get; set; } = "$RECYCLE.BIN; System Volume Information; node_modules; .git; Windows; Program Files; Program Files (x86); AppData";
 
     // AI tagging
-    public string? ActiveTagProviderId { get; set; } = "builtin.claude";
+    public const string DefaultTagProviderId = "local.koboldcpp";
+    public string? ActiveTagProviderId { get; set; } = DefaultTagProviderId;
     public int MaxSuggestedTags { get; set; } = 10;
     public int AiConcurrency { get; set; } = 3;
 
@@ -44,7 +45,9 @@ public class AppSettings {
     public static AppSettings Load() {
         try {
             if (File.Exists(SettingsPath)) {
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
+                AppSettings loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
+                loaded.MigrateBuiltInClaude();
+                return loaded;
             }
         }
         catch (Exception) {
@@ -52,6 +55,33 @@ public class AppSettings {
         }
 
         return new AppSettings();
+    }
+
+    /// <summary>
+    /// Claude tagging used to be built in (provider "builtin.claude", settings under plugin "builtin") and was the
+    /// default. It's now the "anthropic.claude" plugin: carry over a configured key, otherwise switch to the new default.
+    /// </summary>
+    private void MigrateBuiltInClaude() {
+        string[] claudeKeys = ["AnthropicApiKey", "ClaudeModel", "ClaudeEffort"];
+        bool hadClaudeSettings = false;
+        if (PluginSettings.TryGetValue("builtin", out Dictionary<string, string>? builtIn)) {
+            foreach (string key in claudeKeys) {
+                if (builtIn.Remove(key, out string? value)) {
+                    // Values are copied as stored, so an encrypted key stays encrypted
+                    if (!PluginSettings.TryGetValue("anthropic.claude", out Dictionary<string, string>? claude)) {
+                        claude = [];
+                        PluginSettings["anthropic.claude"] = claude;
+                    }
+
+                    claude.TryAdd(key, value);
+                    hadClaudeSettings = true;
+                }
+            }
+        }
+
+        if (ActiveTagProviderId == "builtin.claude") {
+            ActiveTagProviderId = hadClaudeSettings ? "anthropic.claude" : DefaultTagProviderId;
+        }
     }
 
     public void Save() {

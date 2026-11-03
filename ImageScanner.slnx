@@ -4,5 +4,6 @@
   <Project Path="ImageScanner.DatabaseViewer/ImageScanner.DatabaseViewer.csproj" Id="289595be-3e7b-489c-b0ea-5f7cca5fc80f" />
   <Project Path="ImageScanner.Organizer/ImageScanner.Organizer.csproj" />
   <Project Path="ImageScanner.Plugins.Abstractions/ImageScanner.Plugins.Abstractions.csproj" />
-  <Project Path="ImageScanner.Plugins.Samples/ImageScanner.Plugins.Samples.csproj" />
+  <Project Path="ImageScanner.Plugins.Claude/ImageScanner.Plugins.Claude.csproj" />
+  <Project Path="ImageScanner.Plugins.LocalTagger/ImageScanner.Plugins.LocalTagger.csproj" />
 </Solution>

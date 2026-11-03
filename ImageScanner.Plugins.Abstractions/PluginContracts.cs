@@ -97,6 +97,27 @@ public record TagSuggestionRequest(LibraryImage Image, byte[] ImageJpeg, IReadOn
 public record TagSuggestion(IReadOnlyList<string> Tags, string? Category = null, string? Description = null);
 
 /// <summary>
+/// Optional: implemented by a plugin whose main purpose is AI tagging, so the first-run wizard and
+/// Settings can offer it as a tagging engine before the plugin is initialized.
+/// </summary>
+public interface ITagProviderPlugin {
+    /// <summary>The <see cref="ITagSuggestionProvider.Id"/> this plugin registers.</summary>
+    string ProviderId { get; }
+
+    /// <summary>One or two sentences shown when choosing an engine (where it runs, cost, requirements).</summary>
+    string ProviderSummary { get; }
+}
+
+/// <summary>
+/// Thrown by a tag provider when a request fails. Set <see cref="IsConfigurationError"/> when every
+/// following image would fail the same way (bad API key, server not running) so the batch stops early.
+/// </summary>
+public class TagProviderException(string message, bool isConfigurationError = false, Exception? innerException = null)
+    : Exception(message, innerException) {
+    public bool IsConfigurationError { get; } = isConfigurationError;
+}
+
+/// <summary>
 /// An action shown in the gallery's right-click menu.
 /// </summary>
 public interface IImageAction {
