@@ -8,8 +8,12 @@
 		<UseWPF>true</UseWPF>
 		<AssemblyTitle>PixShelf</AssemblyTitle>
 		<Product>PixShelf</Product>
+		<Version>1.0.0</Version>
 		<ApplicationIcon>Assets\PixShelf.ico</ApplicationIcon>
 		<SixLaborsLicenseFile Condition="Exists('..\sixlabors.lic')">..\sixlabors.lic</SixLaborsLicenseFile>
+		<!-- Where build\Plugin.targets copies bundled plugins. It has no runtime identifier in it, so a self-contained
+		     publish (bin\...\win-x64\) still finds them here. -->
+		<BundledPluginsDir>$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Plugins\</BundledPluginsDir>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -29,8 +33,9 @@
 
 	<ItemGroup>
 		<!-- Bundled plugins: built first so they land in bin\...\Plugins, but never referenced by the app itself -->
-		<ProjectReference Include="..\ImageScanner.Plugins.LocalTagger\ImageScanner.Plugins.LocalTagger.csproj" ReferenceOutputAssembly="false" Private="false" />
-		<ProjectReference Include="..\ImageScanner.Plugins.Claude\ImageScanner.Plugins.Claude.csproj" ReferenceOutputAssembly="false" Private="false" />
+		<!-- Plugins always build framework-dependent: a self-contained publish of the app mustn't copy the runtime into them -->
+		<ProjectReference Include="..\ImageScanner.Plugins.LocalTagger\ImageScanner.Plugins.LocalTagger.csproj" ReferenceOutputAssembly="false" Private="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
+		<ProjectReference Include="..\ImageScanner.Plugins.Claude\ImageScanner.Plugins.Claude.csproj" ReferenceOutputAssembly="false" Private="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
 		<!-- The duplicate finder and batch converter are download only (PluginDistribution=Marketplace), so they aren't listed here -->
 
 	</ItemGroup>
@@ -42,7 +47,7 @@
 	-->
 	<Target Name="GenerateOfficialPluginHashes" AfterTargets="ResolveProjectReferences" BeforeTargets="CoreCompile">
 		<ItemGroup>
-			<_BundledPluginFolder Include="$([System.IO.Directory]::GetDirectories('$(OutDir)Plugins'))" Condition="Exists('$(OutDir)Plugins')" />
+			<_BundledPluginFolder Include="$([System.IO.Directory]::GetDirectories('$(BundledPluginsDir)'))" Condition="Exists('$(BundledPluginsDir)')" />
 			<_BundledPluginAssembly Include="@(_BundledPluginFolder->'%(FullPath)\%(Filename)%(Extension).dll')" />
 			<_BundledPluginAssembly Remove="@(_BundledPluginAssembly)" Condition="!Exists('%(FullPath)')" />
 		</ItemGroup>
@@ -64,6 +69,21 @@ internal static class OfficialPluginHashes {
 			<Compile Include="$(IntermediateOutputPath)OfficialPluginHashes.g.cs" />
 			<FileWrites Include="$(IntermediateOutputPath)OfficialPluginHashes.g.cs" />
 		</ItemGroup>
+	</Target>
+
+	<!-- Bundled plugins go next to the app in any other output folder (a runtime-specific build, or a publish) -->
+	<Target Name="CopyBundledPluginsToOutput" AfterTargets="Build" Condition="Exists('$(BundledPluginsDir)') and '$([System.IO.Path]::GetFullPath($(OutDir)Plugins\))' != '$(BundledPluginsDir)'">
+		<ItemGroup>
+			<_BundledPluginFile Include="$(BundledPluginsDir)**\*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(_BundledPluginFile)" DestinationFiles="@(_BundledPluginFile->'$(OutDir)Plugins\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+	</Target>
+
+	<Target Name="CopyBundledPluginsToPublish" AfterTargets="Publish" Condition="Exists('$(BundledPluginsDir)')">
+		<ItemGroup>
+			<_BundledPluginFile Include="$(BundledPluginsDir)**\*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(_BundledPluginFile)" DestinationFiles="@(_BundledPluginFile->'$(PublishDir)Plugins\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
 	</Target>
 
 </Project>
