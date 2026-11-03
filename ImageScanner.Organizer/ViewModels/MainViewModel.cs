@@ -27,6 +27,10 @@ public partial class MainViewModel : ObservableObject {
     private readonly DispatcherTimer searchTimer;
     private IReadOnlyList<ImageItemViewModel> selection = [];
     private CancellationTokenSource? jobCancellation;
+    private CancellationTokenSource? aiCancellation;
+    private readonly Queue<(List<LibraryImage> Images, bool AutoApply)> aiQueue = new();
+    private int aiDone;
+    private int aiTotal;
     private bool suppressFilterChange;
     private int previewVersion;
 
@@ -156,6 +160,19 @@ public partial class MainViewModel : ObservableObject {
 
     [ObservableProperty]
     public partial bool JobIndeterminate { get; set; }
+
+    // AI tagging runs alongside imports, so a long batch never blocks the rest of the app
+    [ObservableProperty]
+    public partial bool IsAiBusy { get; set; }
+
+    [ObservableProperty]
+    public partial string AiJobText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial double AiJobProgress { get; set; }
+
+    [ObservableProperty]
+    public partial bool AiJobIndeterminate { get; set; }
 
     public double TileHeight => TileSize + 30;
 
@@ -464,38 +481,92 @@ public partial class MainViewModel : ObservableObject {
     }
 
     [RelayCommand]
-    private async Task SuggestTagsAsync() {
+    private void SuggestTags() {
         List<LibraryImage> images = [.. selection.Select(item => item.Model)];
         if (images.Count == 0) {
             Growl.Info("Select one or more images first.");
             return;
         }
 
-        if (images.Count > 25 && !Confirm($"Ask AI to tag {images.Count:N0} images? Each image is one paid API request.")) {
+        if (images.Count > 25 && !Confirm($"Ask AI to tag {images.Count:N0} images? Each image is one AI request (paid with an online service).")) {
             return;
         }
 
-        await RunAiTaggingAsync(images, Settings.AutoApplySuggestions);
+        _ = QueueAiTaggingAsync(images, Settings.AutoApplySuggestions);
     }
 
     [RelayCommand]
-    private async Task SuggestTagsForUntaggedAsync() {
+    private void SuggestTagsForUntagged() {
         List<LibraryImage> images = Library.Search(SearchQuery.Parse("is:untagged -is:pending"));
         if (images.Count == 0) {
             Growl.Info("Every image already has tags or pending suggestions.");
             return;
         }
 
-        if (Confirm($"Ask AI to suggest tags for {images.Count:N0} untagged images? Each image is one paid API request.")) {
-            await RunAiTaggingAsync(images, Settings.AutoApplySuggestions);
+        if (Confirm($"Ask AI to suggest tags for {images.Count:N0} untagged images? Each image is one AI request (paid with an online service).")) {
+            _ = QueueAiTaggingAsync(images, Settings.AutoApplySuggestions);
         }
     }
 
-    private Task RunAiTaggingAsync(IReadOnlyList<LibraryImage> images, bool autoApply) => RunJobAsync("AI tagging", async token => {
-        Progress<(int Done, int Total)> progress = new(value => ReportJob($"AI tagging {value.Done:N0} / {value.Total:N0}", value.Done, value.Total));
-        TaggingResult result = await Tagging.SuggestAsync(images, autoApply, progress, token);
-        ShowTaggingResult(result, autoApply);
-    });
+    /// <summary>
+    /// Tags images in the background. Images queued while a batch is running join it, so importing
+    /// several folders produces one progress bar rather than a refused second job.
+    /// </summary>
+    private async Task QueueAiTaggingAsync(IReadOnlyList<LibraryImage> images, bool autoApply) {
+        aiQueue.Enqueue(([.. images], autoApply));
+        if (IsAiBusy) {
+            aiTotal += images.Count;
+            ReportAi();
+            return;
+        }
+
+        IsAiBusy = true;
+        aiDone = 0;
+        aiTotal = images.Count;
+        aiCancellation = new CancellationTokenSource();
+        ReportAi();
+        try {
+            while (aiQueue.TryDequeue(out (List<LibraryImage> Images, bool AutoApply) batch)) {
+                int offset = aiDone;
+                Progress<(int Done, int Total)> progress = new(value => {
+                    aiDone = Math.Max(aiDone, offset + value.Done);
+                    ReportAi();
+                });
+
+                TaggingResult result = await Tagging.SuggestAsync(batch.Images, batch.AutoApply, progress, aiCancellation.Token);
+                aiDone = offset + batch.Images.Count;
+                ShowTaggingResult(result, batch.AutoApply);
+
+                // The batch stopped early on a configuration problem; the queued ones would fail the same way
+                if (result.Succeeded + result.Failed < batch.Images.Count) {
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) {
+            Growl.Info("AI tagging cancelled.");
+        }
+        catch (Exception exception) {
+            Growl.Error($"AI tagging failed: {exception.Message}");
+        }
+        finally {
+            aiQueue.Clear();
+            IsAiBusy = false;
+            aiCancellation.Dispose();
+            aiCancellation = null;
+            RefreshAll();
+        }
+    }
+
+    private void ReportAi() {
+        // Until the first image finishes, the AI may still be loading its model, which can take a minute or more
+        AiJobText = aiDone == 0 ? $"AI tagging 0 / {aiTotal:N0} · starting the AI…" : $"AI tagging {aiDone:N0} / {aiTotal:N0}";
+        AiJobIndeterminate = aiDone == 0;
+        AiJobProgress = aiTotal > 0 ? aiDone * 100.0 / aiTotal : 0;
+    }
+
+    [RelayCommand]
+    private void CancelAiJob() => aiCancellation?.Cancel();
 
     private static void ShowTaggingResult(TaggingResult result, bool autoApply) {
         if (result.Failed > 0) {
@@ -645,7 +716,17 @@ public partial class MainViewModel : ObservableObject {
         }
     }
 
-    private Task RunImportAsync(ImportRequest request) => RunJobAsync($"Importing {request.RootPath}", async token => {
+    private async Task RunImportAsync(ImportRequest request) {
+        List<LibraryImage> newImages = [];
+        await RunJobAsync($"Importing {request.RootPath}", async token => newImages = await ScanSourceAsync(request, token));
+
+        // The import is finished at this point; tagging carries on in the background
+        if (request.SuggestTags && newImages.Count > 0) {
+            _ = QueueAiTaggingAsync(newImages, request.AutoApply);
+        }
+    }
+
+    private async Task<List<LibraryImage>> ScanSourceAsync(ImportRequest request, CancellationToken token) {
         Progress<ScanProgress> scanProgress = new(value => ReportJob(
             value.Total > 0 ? $"{value.Phase} {value.Processed:N0} / {value.Total:N0}" : $"{value.Phase}…", value.Processed, value.Total));
 
@@ -675,13 +756,8 @@ public partial class MainViewModel : ObservableObject {
         Growl.Success($"Import finished: {result.Added:N0} new, {result.Updated:N0} updated, {result.Removed:N0} removed"
                       + (result.ComicsCreated.Count > 0 ? $", {result.ComicsCreated.Count} comics detected" : string.Empty)
                       + (result.Failed > 0 ? $", {result.Failed:N0} unreadable" : string.Empty) + ".");
-
-        if (request.SuggestTags && result.NewImages.Count > 0) {
-            Progress<(int Done, int Total)> aiProgress = new(value => ReportJob($"AI tagging {value.Done:N0} / {value.Total:N0}", value.Done, value.Total));
-            TaggingResult tagging = await Tagging.SuggestAsync(result.NewImages, request.AutoApply, aiProgress, token);
-            ShowTaggingResult(tagging, request.AutoApply);
-        }
-    });
+        return result.NewImages;
+    }
 
     [RelayCommand]
     private void OpenViewer(ImageItemViewModel? item) {

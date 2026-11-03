@@ -463,6 +463,11 @@
                     <ProgressBar Width="220" Height="8" Value="{Binding JobProgress}" IsIndeterminate="{Binding JobIndeterminate}" Style="{StaticResource ProgressBarFlat}" />
                     <Button Margin="10,0,0,0" Padding="8,0" Height="22" Content="Cancel" Command="{Binding CancelJobCommand}" AutomationProperties.Name="Cancel task" />
                 </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,0,20,0" Visibility="{Binding IsAiBusy, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding AiJobText}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ProgressBar Width="160" Height="8" Value="{Binding AiJobProgress}" IsIndeterminate="{Binding AiJobIndeterminate}" Style="{StaticResource ProgressBarFlat}" />
+                    <Button Margin="10,0,0,0" Padding="8,0" Height="22" Content="Cancel" Command="{Binding CancelAiJobCommand}" AutomationProperties.Name="Cancel AI tagging" />
+                </StackPanel>
                 <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" />
             </DockPanel>
         </Border>
