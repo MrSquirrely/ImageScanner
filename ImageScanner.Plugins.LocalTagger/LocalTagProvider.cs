@@ -155,7 +155,8 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
         Depluralize = bool.TryParse(Setting(LocalTaggerPlugin.DepluralizeSetting), out bool depluralize) && depluralize
     };
 
-    private string? Setting(string key) => host.GetSetting(plugin, key) is { Length: > 0 } value ? value.Trim() : null;
+    // Trims quotes too: Explorer's "Copy as path" wraps paths in them
+    private string? Setting(string key) => host.GetSetting(plugin, key)?.Trim().Trim('"') is { Length: > 0 } value ? value : null;
 
     private int ReadInt(string key, int fallback) => int.TryParse(Setting(key), out int value) ? value : fallback;
 

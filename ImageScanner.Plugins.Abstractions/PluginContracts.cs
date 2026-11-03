@@ -15,6 +15,12 @@ public interface IPlugin {
     string Author { get; }
     Version Version { get; }
 
+    /// <summary>
+    /// Icon shown on the plugin's card: a single Segoe Fluent Icons glyph (e.g. ""), or the path
+    /// of a PNG/ICO image, relative to the plugin's folder or absolute. Defaults to a puzzle piece.
+    /// </summary>
+    string Icon => "";
+
     void Initialize(IPluginHost host);
 
     /// <summary>Called when the app closes or the plugin is disabled.</summary>
@@ -34,10 +40,24 @@ public enum PluginSettingKind {
     Secret,
     Number,
     Toggle,
-    Choice
+    Choice,
+
+    /// <summary>A path to a file, with a Browse button. Set <see cref="PluginSetting.FileFilter"/> to limit the file types.</summary>
+    FilePath,
+
+    /// <summary>A path to a folder, with a Browse button.</summary>
+    FolderPath
 }
 
-public record PluginSetting(string Key, string Label, PluginSettingKind Kind, string? DefaultValue = null, string? Description = null, IReadOnlyList<string>? Choices = null);
+/// <param name="Key">Storage key, unique within the plugin.</param>
+/// <param name="Label">Shown above the editor.</param>
+/// <param name="Kind">Which editor to show.</param>
+/// <param name="DefaultValue">Used until the user saves a value.</param>
+/// <param name="Description">Help text shown under the editor.</param>
+/// <param name="Choices">The options for <see cref="PluginSettingKind.Choice"/>.</param>
+/// <param name="FileFilter">For <see cref="PluginSettingKind.FilePath"/>: an open-file dialog filter, e.g. "Models (*.gguf)|*.gguf|All files|*.*".</param>
+public record PluginSetting(string Key, string Label, PluginSettingKind Kind, string? DefaultValue = null, string? Description = null,
+                            IReadOnlyList<string>? Choices = null, string? FileFilter = null);
 
 public enum NotificationKind {
     Info,

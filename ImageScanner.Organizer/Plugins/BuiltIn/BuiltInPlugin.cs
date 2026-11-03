@@ -16,6 +16,7 @@ public sealed class BuiltInPlugin : IPlugin {
     public string Description => "Windows Explorer actions: open in the default app, show in Explorer, copy file path.";
     public string Author => "ImageScanner";
     public Version Version => new(1, 0);
+    public string Icon => "\uE838";
 
     public void Initialize(IPluginHost host) {
         host.RegisterImageAction(new DelegateImageAction("Open in default app", images => {

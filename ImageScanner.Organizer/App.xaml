@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:ImageScanner.Organizer.Converters"
              xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
+             xmlns:plugins="clr-namespace:ImageScanner.Organizer.Plugins"
              xmlns:hc="https://handyorg.github.io/handycontrol"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
@@ -20,18 +21,43 @@
             <conv:IndexToVisibilityConverter x:Key="IndexToVisibility" />
             <conv:BoolRadioConverter x:Key="BoolRadio" />
 
+            <!-- Basic styles first: StaticResource lookups only see entries defined above them in this dictionary -->
+            <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+            <Style x:Key="IconText" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="SectionHeader" TargetType="TextBlock">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+                <Setter Property="Margin" Value="12,14,12,4" />
+            </Style>
+
             <!-- HandyControl centers radio buttons by default; settings lists read better left-aligned -->
             <Style x:Key="OptionRadio" TargetType="RadioButton" BasedOn="{StaticResource RadioButtonBaseStyle}">
                 <Setter Property="HorizontalAlignment" Value="Left" />
             </Style>
 
-            <!-- Editor for one plugin setting (text, secret, toggle or choice); used by Settings and the first-run wizard -->
+            <!-- Editor for one plugin setting (text, path, secret, toggle or choice); used by Settings and the first-run wizard -->
             <DataTemplate x:Key="PluginSettingTemplate" DataType="{x:Type vm:PluginSettingViewModel}">
                 <StackPanel Margin="0,6,0,0">
                     <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
                     <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0"
                              Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}"
                              AutomationProperties.Name="{Binding Label}" />
+                    <DockPanel Margin="0,4,0,0" Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}">
+                        <Button DockPanel.Dock="Right" Margin="6,0,0,0" Command="{Binding BrowseCommand}"
+                                ToolTip="Browse for the file" AutomationProperties.Name="{Binding Label, StringFormat=Browse for {0}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource IconText}" Text="&#xE838;" Margin="0,0,6,0" />
+                                <TextBlock Text="Browse…" />
+                            </StackPanel>
+                        </Button>
+                        <!-- Still editable so a path can be pasted or tweaked -->
+                        <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label}" />
+                    </DockPanel>
                     <hc:PasswordBox IsSafeEnabled="False" UnsafePassword="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     ShowEyeButton="True" Margin="0,4,0,0"
                                     Visibility="{Binding IsSecret, Converter={StaticResource BoolToVisibility}}"
@@ -48,6 +74,62 @@
                                Visibility="{Binding Description, Converter={StaticResource NullToVisibility}}" />
                 </StackPanel>
             </DataTemplate>
+
+            <!-- A plugin's icon (font glyph or image) on a rounded tile; content is a PluginInfo -->
+            <DataTemplate x:Key="PluginIconTemplate" DataType="{x:Type plugins:PluginInfo}">
+                <Border Width="44" Height="44" CornerRadius="10" Background="{DynamicResource LightPrimaryBrush}">
+                    <Grid>
+                        <TextBlock Text="{Binding IconGlyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="22"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryBrush}"
+                                   Visibility="{Binding IconGlyph, Converter={StaticResource NullToVisibility}}" />
+                        <Image Source="{Binding IconImage}" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"
+                               Visibility="{Binding IconImage, Converter={StaticResource NullToVisibility}}" />
+                    </Grid>
+                </Border>
+            </DataTemplate>
+
+            <!-- Plugin card: icon, name, short description, enable switch, settings button; used by Settings and the first-run wizard -->
+            <DataTemplate x:Key="PluginCardTemplate" DataType="{x:Type vm:PluginEntryViewModel}">
+                <Border Width="336" Height="168" Margin="0,0,10,10" Padding="14" CornerRadius="8" BorderThickness="1"
+                        BorderBrush="{DynamicResource BorderBrush}" Background="{DynamicResource SecondaryRegionBrush}"
+                        AutomationProperties.Name="{Binding Name}">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top">
+                            <ContentPresenter DockPanel.Dock="Left" Content="{Binding Info}" ContentTemplate="{StaticResource PluginIconTemplate}" Margin="0,0,12,0" />
+                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToggleButtonSwitch}" IsChecked="{Binding IsEnabled}" VerticalAlignment="Top"
+                                          ToolTip="Enable or disable this plugin"
+                                          AutomationProperties.Name="{Binding Name, StringFormat=Enable {0}}" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                <TextBlock Text="{Binding Byline}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <DockPanel DockPanel.Dock="Bottom" LastChildFill="False">
+                            <Button DockPanel.Dock="Left" Command="{Binding OpenSettingsCommand}" Padding="10,4"
+                                    ToolTip="{Binding Name, StringFormat={}{0} settings}" AutomationProperties.Name="{Binding Name, StringFormat={}{0} settings}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE713;" Margin="0,0,6,0" />
+                                    <TextBlock Text="Settings" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Text="Enabled"
+                                       Foreground="{DynamicResource SuccessBrush}"
+                                       Visibility="{Binding IsEnabled, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Text="Disabled"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Visibility="{Binding IsEnabled, Converter={StaticResource InverseBoolToVisibility}}" />
+                        </DockPanel>
+
+                        <StackPanel Margin="0,10,0,8">
+                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="40"
+                                       ToolTip="{Binding Description}" />
+                            <TextBlock Text="{Binding Info.Error, StringFormat=Failed to load: {0}}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                       Foreground="{DynamicResource DangerBrush}" TextTrimming="CharacterEllipsis"
+                                       Visibility="{Binding Info.Error, Converter={StaticResource NullToVisibility}}" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>            </DataTemplate>
 
             <!-- Shared "coming soon" card for the plugin marketplace (wizard + settings) -->
             <DataTemplate x:Key="MarketplaceComingSoon">
@@ -68,19 +150,6 @@
                     </DockPanel>
                 </Border>
             </DataTemplate>
-
-            <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
-
-            <Style x:Key="IconText" TargetType="TextBlock">
-                <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
-                <Setter Property="VerticalAlignment" Value="Center" />
-            </Style>
-
-            <Style x:Key="SectionHeader" TargetType="TextBlock">
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
-                <Setter Property="Margin" Value="12,14,12,4" />
-            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

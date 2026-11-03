@@ -14,6 +14,7 @@ public sealed class ClaudePlugin : IPlugin, IConfigurablePlugin, ITagProviderPlu
     public string Description => "Suggests tags, a category and a description for images using Anthropic's Claude.";
     public string Author => "ImageScanner";
     public Version Version => new(1, 0);
+    public string Icon => "\uE753";
 
     public string ProviderId => ClaudeTagProvider.ProviderId;
     public string ProviderSummary => "Cloud. High-quality tags; needs an Anthropic API key and each image is one paid request.";

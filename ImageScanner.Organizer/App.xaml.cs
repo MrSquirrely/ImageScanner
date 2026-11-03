@@ -88,7 +88,30 @@ public partial class App : Application {
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) {
-        Growl.Error($"Unexpected error: {e.Exception.Message}");
+        LogError(e.Exception);
         e.Handled = true;
+
+        // Toasts need the main window; before it exists (e.g. during the setup wizard) a toast would be
+        // invisible and the app would sit in the background with no window, so fail visibly instead
+        if (Current.MainWindow is MainWindow { IsVisible: true }) {
+            Growl.Error($"Unexpected error: {e.Exception.Message}");
+            return;
+        }
+
+        HandyControl.Controls.MessageBox.Show($"Image Organizer couldn't start:\n{e.Exception.Message}\n\nDetails were written to {ErrorLogPath}.",
+                                              "Image Organizer", MessageBoxButton.OK, MessageBoxImage.Error);
+        Current.Shutdown(1);
+    }
+
+    private static string ErrorLogPath => Path.Combine(AppSettings.AppDataDirectory, "error.log");
+
+    private static void LogError(Exception exception) {
+        try {
+            Directory.CreateDirectory(AppSettings.AppDataDirectory);
+            File.AppendAllText(ErrorLogPath, $"[{DateTime.Now:u}] {exception}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch (IOException) {
+            // Logging must never cause a second failure
+        }
     }
 }

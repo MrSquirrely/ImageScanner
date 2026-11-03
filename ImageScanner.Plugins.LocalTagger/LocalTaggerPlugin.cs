@@ -31,6 +31,7 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
     public string Description => "Tags images with a vision model running on this PC through KoboldCpp. Free and private: images never leave your computer.";
     public string Author => "ImageScanner";
     public Version Version => new(1, 0);
+    public string Icon => "\uE977";
 
     public string ProviderId => LocalTagProvider.ProviderId;
     public string ProviderSummary => "On this PC. Free and private; needs KoboldCpp and a vision model (a GPU is recommended).";
@@ -38,12 +39,15 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
     public IReadOnlyList<PluginSetting> Settings { get; } = [
         new(ServerUrlSetting, "Server URL", PluginSettingKind.Text, "http://localhost:5001",
             "KoboldCpp's default address. Any OpenAI-compatible vision server works (llama.cpp, LM Studio, Ollama at http://localhost:11434)."),
-        new(KoboldCppPathSetting, "KoboldCpp executable (optional)", PluginSettingKind.Text,
-            Description: "Full path to koboldcpp.exe. When set, KoboldCpp starts automatically if it isn't running and stops when you close the app."),
-        new(ModelPathSetting, "Model or KoboldCpp config (optional)", PluginSettingKind.Text,
-            Description: "A .kcpps launch config or a .gguf vision model, passed to KoboldCpp when it starts it. Leave empty to choose in KoboldCpp's own window."),
-        new(MmprojPathSetting, "Vision projector .gguf (optional)", PluginSettingKind.Text,
-            Description: "The mmproj file that pairs with a .gguf model. Not needed with a .kcpps config."),
+        new(KoboldCppPathSetting, "KoboldCpp executable (optional)", PluginSettingKind.FilePath,
+            Description: "koboldcpp.exe. When set, KoboldCpp starts automatically if it isn't running and stops when you close the app.",
+            FileFilter: "KoboldCpp (koboldcpp*.exe)|koboldcpp*.exe|Programs (*.exe)|*.exe"),
+        new(ModelPathSetting, "Model or KoboldCpp config (optional)", PluginSettingKind.FilePath,
+            Description: "A .kcpps launch config or a .gguf vision model, passed to KoboldCpp when it starts it. Leave empty to choose in KoboldCpp's own window.",
+            FileFilter: "KoboldCpp config or model (*.kcpps;*.gguf)|*.kcpps;*.gguf|KoboldCpp config (*.kcpps)|*.kcpps|Model (*.gguf)|*.gguf"),
+        new(MmprojPathSetting, "Vision projector .gguf (optional)", PluginSettingKind.FilePath,
+            Description: "The mmproj file that pairs with a .gguf model. Not needed with a .kcpps config.",
+            FileFilter: "Vision projector (*mmproj*.gguf)|*mmproj*.gguf|Model files (*.gguf)|*.gguf"),
         new(ModelNameSetting, "Model name (optional)", PluginSettingKind.Text,
             Description: "Only needed for servers that host several models (LM Studio, Ollama). Defaults to the first model the server lists."),
         new(PasswordSetting, "Server password (optional)", PluginSettingKind.Secret),

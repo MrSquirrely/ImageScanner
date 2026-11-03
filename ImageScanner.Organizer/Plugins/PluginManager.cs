@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -26,6 +28,42 @@ public partial class PluginInfo(IPlugin plugin, string source, bool isBuiltIn) :
     public List<string> Features { get; } = [];
 
     public string FeatureSummary => Features.Count == 0 ? "No features registered" : string.Join(" · ", Features);
+
+    public bool HasSettings => Plugin is IConfigurablePlugin { Settings.Count: > 0 };
+
+    /// <summary>The icon as a font glyph, or null when the plugin supplied an image (or nothing usable).</summary>
+    public string? IconGlyph => IconImage == null ? (Plugin.Icon is { Length: > 0 and <= 2 } glyph ? glyph : "") : null;
+
+    /// <summary>The icon image when the plugin's Icon is a file path; resolved relative to the plugin's folder.</summary>
+    public ImageSource? IconImage => field ??= LoadIconImage();
+
+    private ImageSource? LoadIconImage() {
+        string icon = Plugin.Icon;
+        if (icon is not { Length: > 2 }) {
+            return null;
+        }
+
+        try {
+            string folder = IsBuiltIn ? AppContext.BaseDirectory : Path.GetDirectoryName(Source)!;
+            string path = Path.IsPathRooted(icon) ? icon : Path.Combine(folder, icon);
+            if (!File.Exists(path)) {
+                return null;
+            }
+
+            BitmapImage image = new();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(path);
+            image.DecodePixelWidth = 64;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception) {
+            // A broken icon file falls back to the default glyph
+            return null;
+        }
+    }
 }
 
 /// <summary>

@@ -93,30 +93,13 @@
                             <Run Text="and restart. Enabling or disabling a plugin also needs a restart." />
                         </TextBlock>
                     </DockPanel>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding PluginEntries}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:PluginEntryViewModel}">
-                                    <Border Margin="0,0,0,10" Padding="12" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
-                                            Background="{DynamicResource SecondaryRegionBrush}">
-                                        <StackPanel>
-                                            <DockPanel>
-                                                <ToggleButton DockPanel.Dock="Right" Style="{StaticResource ToggleButtonSwitch}" IsChecked="{Binding IsEnabled}"
-                                                              AutomationProperties.Name="{Binding Info.Plugin.Name, StringFormat=Enable {0}}" />
-                                                <TextBlock Text="{Binding Header}" FontWeight="SemiBold" FontSize="14" />
-                                            </DockPanel>
-                                            <TextBlock Text="{Binding Info.Plugin.Description}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                            <TextBlock Text="{Binding Info.FeatureSummary}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                            <TextBlock Text="{Binding Info.Source}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
-                                            <TextBlock Text="{Binding Info.Error}" TextWrapping="Wrap" Foreground="{DynamicResource DangerBrush}"
-                                                       Visibility="{Binding Info.Error, Converter={StaticResource NullToVisibility}}" />
-
-                                            <ItemsControl ItemsSource="{Binding Settings}" ItemTemplate="{StaticResource PluginSettingTemplate}" Margin="0,8,0,0" Visibility="{Binding HasSettings, Converter={StaticResource BoolToVisibility}}">
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding PluginEntries}" ItemTemplate="{StaticResource PluginCardTemplate}" AutomationProperties.Name="Installed plugins">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                         </ItemsControl>
                     </ScrollViewer>
                 </DockPanel>

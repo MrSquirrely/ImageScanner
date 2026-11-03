@@ -9,6 +9,7 @@ using HandyControl.Controls;
 using ImageScanner.Core.Library;
 using ImageScanner.Organizer.Plugins;
 using ImageScanner.Organizer.Services;
+using ImageScanner.Organizer.Views;
 using ImageScanner.Plugins;
 
 namespace ImageScanner.Organizer.ViewModels;
@@ -22,9 +23,36 @@ public partial class PluginSettingViewModel(PluginSetting definition, string? va
     public bool IsSecret => Definition.Kind == PluginSettingKind.Secret;
     public bool IsToggle => Definition.Kind == PluginSettingKind.Toggle;
     public bool IsChoice => Definition.Kind == PluginSettingKind.Choice;
+    public bool IsPath => Definition.Kind is PluginSettingKind.FilePath or PluginSettingKind.FolderPath;
 
     [ObservableProperty]
     public partial string? Value { get; set; } = value;
+
+    [RelayCommand]
+    private void Browse() {
+        // Start where the current value points, so changing a model next to the old one is one click
+        string? current = string.IsNullOrWhiteSpace(Value) ? null : Value.Trim().Trim('"');
+        string? startFolder = current == null ? null
+                              : Directory.Exists(current) ? current
+                              : Path.GetDirectoryName(current) is { } parent && Directory.Exists(parent) ? parent
+                              : null;
+
+        if (Definition.Kind == PluginSettingKind.FolderPath) {
+            Microsoft.Win32.OpenFolderDialog folderDialog = new() { Title = Label };
+            if (startFolder != null) folderDialog.InitialDirectory = startFolder;
+            if (folderDialog.ShowDialog() == true) Value = folderDialog.FolderName;
+            return;
+        }
+
+        Microsoft.Win32.OpenFileDialog fileDialog = new() {
+            Title = Label,
+            Filter = string.IsNullOrWhiteSpace(Definition.FileFilter) ? "All files (*.*)|*.*" : Definition.FileFilter,
+            CheckFileExists = true
+        };
+        if (startFolder != null) fileDialog.InitialDirectory = startFolder;
+        if (current != null && File.Exists(current)) fileDialog.FileName = Path.GetFileName(current);
+        if (fileDialog.ShowDialog() == true) Value = fileDialog.FileName;
+    }
 
     public bool BoolValue {
         get => bool.TryParse(Value, out bool result) && result;
@@ -35,36 +63,49 @@ public partial class PluginSettingViewModel(PluginSetting definition, string? va
     }
 }
 
-public partial class PluginEntryViewModel : ObservableObject {
-    private readonly PluginManager manager;
+/// <summary>
+/// One plugin card, on the Settings → Plugins tab or the first-run wizard. In Settings (<paramref name="applyImmediately"/>)
+/// the switch is saved at once; the wizard reads <see cref="IsEnabled"/> when it finishes instead.
+/// </summary>
+public partial class PluginEntryViewModel(PluginInfo info, PluginManager manager, bool applyImmediately = true, bool? initiallyEnabled = null) : ObservableObject {
+    private bool isEnabled = initiallyEnabled ?? info.IsEnabled;
 
-    public PluginEntryViewModel(PluginInfo info, PluginManager manager) {
-        this.manager = manager;
-        Info = info;
-        isEnabled = info.IsEnabled;
-        if (info.Plugin is IConfigurablePlugin configurable) {
-            foreach (PluginSetting setting in configurable.Settings) {
-                Settings.Add(new PluginSettingViewModel(setting, manager.GetSetting(info.Plugin, setting.Key)));
-            }
-        }
-    }
-
-    public PluginInfo Info { get; }
-    public ObservableCollection<PluginSettingViewModel> Settings { get; } = [];
-    public bool HasSettings => Settings.Count > 0;
-    public string Header => $"{Info.Plugin.Name} {Info.Plugin.Version} · {Info.Plugin.Author}";
-
-    private bool isEnabled;
+    public PluginInfo Info { get; } = info;
+    public string Name => Info.Plugin.Name;
+    public string Description => Info.Plugin.Description;
+    public string Byline => Info.IsBuiltIn ? $"Built-in · v{Info.Plugin.Version}" : $"{Info.Plugin.Author} · v{Info.Plugin.Version}";
+    public bool HasSettings => Info.HasSettings;
 
     public bool IsEnabled {
         get => isEnabled;
         set {
-            if (SetProperty(ref isEnabled, value)) {
+            if (SetProperty(ref isEnabled, value) && applyImmediately) {
                 manager.SetEnabled(Info, value);
                 Growl.Info("Restart Image Organizer to apply plugin changes.");
             }
         }
     }
+
+    [RelayCommand(CanExecute = nameof(HasSettings))]
+    private void OpenSettings() {
+        PluginSettingsWindow window = new(new PluginSettingsViewModel(Info, manager)) {
+            Owner = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>().FirstOrDefault(window => window.IsActive)
+        };
+        window.ShowDialog();
+    }
+}
+
+/// <summary>
+/// The settings dialog for one plugin. Values are written only when the user saves.
+/// </summary>
+public partial class PluginSettingsViewModel(PluginInfo info, PluginManager manager) {
+    public PluginInfo Info { get; } = info;
+    public string Title => $"{Info.Plugin.Name} settings";
+
+    public IReadOnlyList<PluginSettingViewModel> Settings { get; } =
+        info.Plugin is IConfigurablePlugin configurable
+            ? [.. configurable.Settings.Select(setting => new PluginSettingViewModel(setting, manager.GetSetting(info.Plugin, setting.Key)))]
+            : [];
 
     public void Save() {
         foreach (PluginSettingViewModel setting in Settings) {
@@ -146,10 +187,6 @@ public partial class SettingsViewModel : ObservableObject {
 
         bool libraryChanged = !string.Equals(settings.LibraryPath, LibraryPath, StringComparison.OrdinalIgnoreCase);
         settings.LibraryPath = LibraryPath;
-        foreach (PluginEntryViewModel entry in PluginEntries) {
-            entry.Save();
-        }
-
         settings.Save();
         Growl.Success(libraryChanged ? "Settings saved. Restart to open the new library file." : "Settings saved.");
     }

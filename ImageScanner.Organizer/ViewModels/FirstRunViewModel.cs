@@ -9,16 +9,6 @@ using ImageScanner.Plugins;
 
 namespace ImageScanner.Organizer.ViewModels;
 
-public partial class WizardPluginItem(PluginInfo info, bool isEnabled) : ObservableObject {
-    public PluginInfo Info { get; } = info;
-    public string Name => Info.Plugin.Name;
-    public string Description => Info.Plugin.Description;
-    public string Source => Info.IsBuiltIn ? "Built-in" : $"{Info.Plugin.Author} · v{Info.Plugin.Version}";
-
-    [ObservableProperty]
-    public partial bool IsEnabled { get; set; } = isEnabled;
-}
-
 /// <summary>
 /// A tagging engine offered on the wizard's AI step: a plugin implementing <see cref="ITagProviderPlugin"/>, or "None".
 /// </summary>
@@ -44,7 +34,8 @@ public partial class FirstRunViewModel : ObservableObject {
         DarkTheme = settings.DarkTheme;
         LibraryPath = settings.LibraryPath;
         UseSystemViewer = settings.UseSystemViewer;
-        Plugins = [.. plugins.Plugins.Select(info => new WizardPluginItem(info, !settings.DisabledPlugins.Contains(info.Plugin.Id)))];
+        Plugins = [.. plugins.Plugins.Select(info => new PluginEntryViewModel(info, plugins, applyImmediately: false,
+                                                                           initiallyEnabled: !settings.DisabledPlugins.Contains(info.Plugin.Id)))];
 
         TaggingEngines = [
             // The default engine is listed first
@@ -64,7 +55,7 @@ public partial class FirstRunViewModel : ObservableObject {
     }
 
     public string[] Steps => StepNames;
-    public ObservableCollection<WizardPluginItem> Plugins { get; }
+    public ObservableCollection<PluginEntryViewModel> Plugins { get; }
     public IReadOnlyList<TaggingEngineOption> TaggingEngines { get; }
 
     /// <summary>True when the user finished the wizard and asked to import a folder straight away.</summary>
