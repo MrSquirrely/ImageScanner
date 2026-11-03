@@ -685,13 +685,12 @@ public partial class MainViewModel : ObservableObject {
         if (item == null) return;
 
         if (Settings.UseSystemViewer) {
-            try {
-                Process.Start(new ProcessStartInfo(item.Model.FilePath) { UseShellExecute = true });
+            if (ShellLauncher.TryOpenWithDefaultApp(item.Model.FilePath, out string? error)) {
+                return;
             }
-            catch (Exception exception) {
-                Growl.Error($"Windows couldn't open {item.FileName}: {exception.Message}");
-            }
-            return;
+
+            // Don't leave the user with nothing: fall back to the built-in viewer and explain why
+            Growl.Warning($"{error} Showing it in the built-in viewer instead.");
         }
 
         List<LibraryImage> images = [.. Images.Select(image => image.Model)];

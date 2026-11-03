@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Windows;
 
 using ImageScanner.Core.Library;
+using ImageScanner.Organizer.Services;
 using ImageScanner.Plugins;
 
 namespace ImageScanner.Organizer.Plugins.BuiltIn;
@@ -33,7 +34,10 @@ public sealed class BuiltInPlugin : IPlugin, IConfigurablePlugin {
         host.RegisterTagSuggestionProvider(new ClaudeTagProvider(this, host));
         host.RegisterImageAction(new DelegateImageAction("Open in default app", images => {
             foreach (LibraryImage image in images.Take(10)) {
-                Process.Start(new ProcessStartInfo(image.FilePath) { UseShellExecute = true });
+                if (!ShellLauncher.TryOpenWithDefaultApp(image.FilePath, out string? error)) {
+                    host.Notify(error!, NotificationKind.Warning);
+                    break;
+                }
             }
         }));
         host.RegisterImageAction(new DelegateImageAction("Show in Explorer", images =>

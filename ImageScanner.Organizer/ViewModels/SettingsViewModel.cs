@@ -107,13 +107,7 @@ public partial class SettingsViewModel : ObservableObject {
     public partial bool DarkTheme { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UseBuiltInViewer))]
     public partial bool UseSystemViewer { get; set; }
-
-    public bool UseBuiltInViewer {
-        get => !UseSystemViewer;
-        set => UseSystemViewer = !value;
-    }
 
     [ObservableProperty]
     public partial int MaxSuggestedTags { get; set; }
@@ -173,6 +167,11 @@ public partial class SettingsViewModel : ObservableObject {
             LibraryPath = dialog.FileName;
         }
     }
+
+    /// <summary>
+    /// Undoes the live theme preview when the window is cancelled; nothing else is applied until Save.
+    /// </summary>
+    public void DiscardChanges() => App.ApplyTheme(settings.DarkTheme);
 
     [RelayCommand]
     private void RerunSetup() {

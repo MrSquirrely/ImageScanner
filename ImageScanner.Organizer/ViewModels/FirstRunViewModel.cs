@@ -69,13 +69,7 @@ public partial class FirstRunViewModel : ObservableObject {
     public partial bool AutoApply { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UseBuiltInViewer))]
     public partial bool UseSystemViewer { get; set; }
-
-    public bool UseBuiltInViewer {
-        get => !UseSystemViewer;
-        set => UseSystemViewer = !value;
-    }
 
     [ObservableProperty]
     public partial bool ImportAfterSetup { get; set; } = true;

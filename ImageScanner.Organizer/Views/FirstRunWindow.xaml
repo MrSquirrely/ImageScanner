@@ -83,9 +83,9 @@
                 <TextBlock Text="How should images open?" FontSize="20" FontWeight="SemiBold" />
                 <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                            Text="Choose what happens when you double-click an image. Comics always open in the built-in reader." />
-                <RadioButton Margin="0,20,0,0" GroupName="Viewer" IsChecked="{Binding UseBuiltInViewer}" FontSize="14"
+                <RadioButton Style="{StaticResource OptionRadio}" Margin="0,20,0,0" GroupName="WizardViewer" IsChecked="{Binding UseSystemViewer, Converter={StaticResource BoolRadio}, ConverterParameter=False}" FontSize="14"
                              Content="Built-in viewer — zoom, pan and browse through results with the arrow keys" />
-                <RadioButton Margin="0,12,0,0" GroupName="Viewer" IsChecked="{Binding UseSystemViewer}" FontSize="14"
+                <RadioButton Style="{StaticResource OptionRadio}" Margin="0,12,0,0" GroupName="WizardViewer" IsChecked="{Binding UseSystemViewer, Converter={StaticResource BoolRadio}, ConverterParameter=True}" FontSize="14"
                              Content="My computer's default image app (e.g. Photos)" />
             </StackPanel>
 

@@ -13,7 +13,7 @@
         <Border DockPanel.Dock="Bottom" Padding="16,10" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Style="{StaticResource ButtonPrimary}" Content="Save" MinWidth="90" Command="{Binding SaveCommand}" Click="Save_Click" IsDefault="True" />
-                <Button Content="Close" MinWidth="90" Margin="8,0,0,0" IsCancel="True" />
+                <Button Content="Cancel" MinWidth="90" Margin="8,0,0,0" IsCancel="True" ToolTip="Discard changes" />
             </StackPanel>
         </Border>
 
@@ -28,8 +28,8 @@
                         </DockPanel>
 
                         <TextBlock Text="Open images with" FontWeight="SemiBold" Margin="0,18,0,4" />
-                        <RadioButton GroupName="Viewer" IsChecked="{Binding UseBuiltInViewer}" Content="Built-in viewer (zoom, pan, browse with arrow keys)" />
-                        <RadioButton GroupName="Viewer" Margin="0,6,0,0" IsChecked="{Binding UseSystemViewer}" Content="My computer's default image app" />
+                        <RadioButton Style="{StaticResource OptionRadio}" GroupName="SettingsViewer" IsChecked="{Binding UseSystemViewer, Converter={StaticResource BoolRadio}, ConverterParameter=False}" Content="Built-in viewer (zoom, pan, browse with arrow keys)" />
+                        <RadioButton Style="{StaticResource OptionRadio}" GroupName="SettingsViewer" Margin="0,6,0,0" IsChecked="{Binding UseSystemViewer, Converter={StaticResource BoolRadio}, ConverterParameter=True}" Content="My computer's default image app" />
                         <TextBlock Text="Comics always open in the built-in reader." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
 
                         <TextBlock Text="Library database" FontWeight="SemiBold" Margin="0,18,0,4" />

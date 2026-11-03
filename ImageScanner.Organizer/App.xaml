@@ -16,6 +16,12 @@
             <conv:NullToVisibilityConverter x:Key="NullToVisibility" />
             <conv:InverseBoolConverter x:Key="InverseBool" />
             <conv:IndexToVisibilityConverter x:Key="IndexToVisibility" />
+            <conv:BoolRadioConverter x:Key="BoolRadio" />
+
+            <!-- HandyControl centers radio buttons by default; settings lists read better left-aligned -->
+            <Style x:Key="OptionRadio" TargetType="RadioButton" BasedOn="{StaticResource RadioButtonBaseStyle}">
+                <Setter Property="HorizontalAlignment" Value="Left" />
+            </Style>
 
             <!-- Shared "coming soon" card for the plugin marketplace (wizard + settings) -->
             <DataTemplate x:Key="MarketplaceComingSoon">
