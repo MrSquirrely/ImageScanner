@@ -40,6 +40,9 @@ public class AppSettings {
     public int AiConcurrency { get; set; } = 3;
 
     public List<string> DisabledPlugins { get; set; } = [];
+
+    // SHA-256 of plugin DLLs installed from Marketplace posts by the PixShelf team (shown as official)
+    public List<string> TrustedPluginHashes { get; set; } = [];
     public Dictionary<string, Dictionary<string, string>> PluginSettings { get; set; } = [];
 
     public static AppSettings Load() {

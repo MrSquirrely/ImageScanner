@@ -156,13 +156,15 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     }
 
     /// <summary>
-    /// True when the file is byte-for-byte one of the plugins bundled with this build (see GenerateOfficialPluginHashes).
+    /// True when the file is byte-for-byte one of the plugins bundled with this build (see GenerateOfficialPluginHashes),
+    /// or one installed from a Marketplace post by the PixShelf team after its download hash was verified.
     /// </summary>
-    private static bool IsOfficialAssembly(string assemblyPath) {
+    private bool IsOfficialAssembly(string assemblyPath) {
         try {
             using FileStream stream = File.OpenRead(assemblyPath);
             string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
-            return OfficialPluginHashes.Sha256.Contains(hash, StringComparer.OrdinalIgnoreCase);
+            return OfficialPluginHashes.Sha256.Contains(hash, StringComparer.OrdinalIgnoreCase)
+                   || settings.TrustedPluginHashes.Contains(hash, StringComparer.OrdinalIgnoreCase);
         }
         catch (IOException) {
             return false;

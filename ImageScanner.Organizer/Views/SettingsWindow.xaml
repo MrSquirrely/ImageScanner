@@ -17,7 +17,7 @@
             </StackPanel>
         </Border>
 
-        <TabControl Style="{StaticResource TabControlInLine}" Margin="12">
+        <TabControl x:Name="Tabs" Style="{StaticResource TabControlInLine}" Margin="12" SelectionChanged="Tabs_SelectionChanged">
             <TabItem Header="General">
                 <DockPanel Margin="8,12">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -79,12 +79,140 @@
                 </DockPanel>
             </TabItem>
 
-            <TabItem Header="Marketplace">
-                <StackPanel Margin="8,12">
-                    <ContentPresenter ContentTemplate="{StaticResource MarketplaceComingSoon}" Content="{Binding}" />
-                    <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
-                               Text="Want to build a plugin now? Reference ImageScanner.Plugins.Abstractions, implement IPlugin, and copy the build output into the Plugins folder (see the Plugins tab)." />
-                </StackPanel>
+            <TabItem x:Name="MarketplaceTab" Header="Marketplace">
+                <!-- Listings come from the repository's GitHub Discussions; each "… Plugins" category is a filter -->
+                <DockPanel Margin="8,12" DataContext="{Binding Marketplace}">
+                    <DockPanel DockPanel.Dock="Top">
+                        <Button DockPanel.Dock="Right" Margin="6,0,0,0" Command="{Binding ShareCommand}" Style="{StaticResource ButtonPrimary}"
+                                ToolTip="Post your plugin in the PixShelf GitHub Discussions" AutomationProperties.Name="Share a plugin">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource IconText}" Text="&#xE898;" Margin="0,0,6,0" />
+                                <TextBlock Text="Share a plugin" />
+                            </StackPanel>
+                        </Button>
+                        <Button DockPanel.Dock="Right" Margin="6,0,0,0" Command="{Binding OpenDiscussionsCommand}" Content="Open on GitHub"
+                                AutomationProperties.Name="Open the marketplace on GitHub" />
+                        <Button DockPanel.Dock="Right" Margin="6,0,0,0" Padding="8,0" Command="{Binding RefreshCommand}" ToolTip="Refresh"
+                                AutomationProperties.Name="Refresh marketplace">
+                            <TextBlock Style="{StaticResource IconText}" Text="&#xE72C;" />
+                        </Button>
+                        <hc:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" hc:InfoElement.Placeholder="Search plugins"
+                                    hc:InfoElement.ShowClearButton="True" AutomationProperties.Name="Search plugins" />
+                    </DockPanel>
+
+                    <ListBox DockPanel.Dock="Top" Margin="0,10,0,0" ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter}"
+                             BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Plugin categories">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                                <Setter Property="Margin" Value="0,0,6,6" />
+                                <Setter Property="Padding" Value="12,4" />
+                                <Setter Property="hc:BorderElement.CornerRadius" Value="14" />
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}" ToolTip="{Binding Category.Description}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,6" CornerRadius="4" BorderThickness="1"
+                            BorderBrush="{DynamicResource WarningBrush}" Visibility="{Binding Warning, Converter={StaticResource NullToVisibility}}">
+                        <TextBlock Text="{Binding Warning}" TextWrapping="Wrap" />
+                    </Border>
+
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding LastUpdated}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
+                        <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Text="Community plugins aren't reviewed by the PixShelf team. Check the discussion and source before installing." />
+                    </DockPanel>
+
+                    <Grid>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Listings}" AutomationProperties.Name="Marketplace plugins">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:MarketplaceListingViewModel}">
+                                        <Border Width="336" Height="196" Margin="0,0,10,10" Padding="14" CornerRadius="8" BorderThickness="1"
+                                                BorderBrush="{DynamicResource BorderBrush}" Background="{DynamicResource SecondaryRegionBrush}"
+                                                AutomationProperties.Name="{Binding Name}">
+                                            <DockPanel>
+                                                <DockPanel DockPanel.Dock="Top">
+                                                    <Border DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="18" Margin="0,0,10,0" Background="{DynamicResource RegionBrush}"
+                                                            ToolTip="{Binding Listing.Author}">
+                                                        <Border.OpacityMask>
+                                                            <VisualBrush>
+                                                                <VisualBrush.Visual>
+                                                                    <Ellipse Width="36" Height="36" Fill="Black" />
+                                                                </VisualBrush.Visual>
+                                                            </VisualBrush>
+                                                        </Border.OpacityMask>
+                                                        <Image Source="{Binding Listing.AuthorAvatarUrl, TargetNullValue={x:Null}}" Stretch="UniformToFill" />
+                                                    </Border>
+                                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Top" FontSize="11" Text="{Binding CategoryLabel}"
+                                                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" MaxWidth="190" ToolTip="{Binding Name}" />
+                                                            <Border Margin="6,0,0,0" Padding="6,1" CornerRadius="8" Background="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"
+                                                                    Visibility="{Binding Listing.IsTeamPost, Converter={StaticResource BoolToVisibility}}"
+                                                                    ToolTip="Posted by the PixShelf team">
+                                                                <TextBlock Text="Team" FontSize="10" Foreground="White" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Byline}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </DockPanel>
+
+                                                <DockPanel DockPanel.Dock="Bottom" LastChildFill="False">
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource ButtonPrimary}" Content="{Binding ActionText}" Command="{Binding InstallCommand}"
+                                                            Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}"
+                                                            AutomationProperties.Name="{Binding ActionName}" />
+                                                    <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0" Text="{Binding StateText}"
+                                                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                                                    <Button DockPanel.Dock="Left" Padding="8,0" Command="{Binding OpenCommand}" ToolTip="Open the discussion on GitHub"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat=Details for {0}}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Listing.Likes, StringFormat=👍 {0}}" ToolTip="Thumbs-up reactions on GitHub" />
+                                                            <TextBlock Margin="10,0,0,0" Text="{Binding Listing.Comments, StringFormat=💬 {0}}" ToolTip="Comments" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button DockPanel.Dock="Left" Margin="6,0,0,0" Padding="8,0" Command="{Binding OpenSourceCommand}" Content="Source"
+                                                            Visibility="{Binding Listing.SourceUrl, Converter={StaticResource NullToVisibility}}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat=Source code for {0}}" />
+                                                </DockPanel>
+
+                                                <TextBlock Margin="0,10,0,8" Text="{Binding Listing.Summary}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding Listing.Summary}" />
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <hc:LoadingCircle HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420"
+                                    Visibility="{Binding ShowEmpty, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Style="{StaticResource IconText}" Text="&#xE719;" FontSize="36" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource SecondaryTextBrush}" />
+                            <TextBlock Margin="0,10,0,0" Text="{Binding EmptyText}" TextWrapping="Wrap" TextAlignment="Center"
+                                       Foreground="{DynamicResource SecondaryTextBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
             </TabItem>
         </TabControl>
     </DockPanel>

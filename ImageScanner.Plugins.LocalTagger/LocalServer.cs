@@ -52,7 +52,7 @@ public sealed class LocalServer : IDisposable {
     /// <see cref="TagProviderException"/> when the server can't be reached.
     /// </summary>
     public async Task EnsureRunningAsync(LocalServerOptions options, CancellationToken cancellationToken) {
-        if (DateTime.UtcNow - lastHealthy < TimeSpan.FromSeconds(30)) {
+        if ((DateTime.UtcNow - lastHealthy) < TimeSpan.FromSeconds(30)) {
             return;
         }
 

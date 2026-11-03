@@ -60,6 +60,20 @@ Install a plugin by copying its build output to `Plugins\<PluginName>\<PluginNam
 
 **Official vs third-party.** Plugin cards show an *Official* badge for plugins made by the PixShelf team and *Third-party* for everything else. A build step (`GenerateOfficialPluginHashes` in `ImageScanner.Organizer.csproj`) compiles the SHA-256 of each bundled plugin's DLL into the app, and a plugin counts as official only if its file matches one of those hashes. The name or author a plugin reports makes no difference, and a modified official DLL shows as third-party. Build the app after changing a bundled plugin so its new hash is recorded.
 
+**Marketplace.** *Settings → Marketplace* lists plugins shared in this repository's [GitHub Discussions](https://github.com/MrSquirrely/ImageScanner/discussions). Every Discussions category whose name ends in "Plugins" is a marketplace category and shows up as a filter:
+
+| Category | Slug | For |
+|---|---|---|
+| 🤖 AI Tagging Plugins | `ai-tagging-plugins` | `ITagSuggestionProvider` |
+| 🖼️ Image Action Plugins | `image-action-plugins` | `IImageAction` |
+| 📥 Import Plugins | `import-plugins` | `IImportProcessor` |
+| 🧰 Tool Plugins | `tool-plugins` | `IPluginCommand` |
+| 🧩 Other Plugins | `other-plugins` | anything else |
+
+Each category has a form in `.github/DISCUSSION_TEMPLATE/<slug>.yml` that asks for the plugin's name, ID, version, description, download URL (an HTTPS link to a .zip, such as a GitHub release asset), the zip's SHA-256 and optional source link. The app reads those fields, so keep the labels unchanged. To publish an update, edit the post's version, link and hash.
+
+Installing downloads the zip, refuses it unless the SHA-256 matches the post, and stages it in `%LOCALAPPDATA%\ImageScanner\Organizer\Plugins.pending`; it moves into `Plugins` the next time PixShelf starts, because loaded plugins keep their DLLs locked. A newer version in the post shows as *Update*. Posts by the repository owner, members and collaborators carry a *Team* badge, and plugins installed from them count as official. The app reads Discussions anonymously through the GitHub API (60 requests an hour) and caches the list for 10 minutes.
+
 A tagging plugin can return `TagSuggestion.Artists`; `TagSuggestionRequest.KnownArtist` carries the artist from the file name when the app already knows it, so the plugin can skip its own detection.
 
 ## Getting Started

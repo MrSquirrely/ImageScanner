@@ -27,6 +27,8 @@ public partial class App : Application {
         ApplyTheme(settings.DarkTheme);
 
         // Discover plugins before the wizard so it can offer to turn them on or off
+        // Marketplace installs and updates are staged while plugins are loaded (their DLLs are locked) and applied here
+        PluginInstaller.ApplyPendingInstalls();
         plugins = new PluginManager(settings);
         plugins.Discover([new BuiltInPlugin()]);
 

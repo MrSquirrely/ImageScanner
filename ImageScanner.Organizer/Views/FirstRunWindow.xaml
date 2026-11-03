@@ -115,7 +115,7 @@
                     <TextBlock Margin="0,8,0,10" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                                Text="Plugins add features such as other AI taggers, menu actions and import steps. Choose which ones to turn on." />
                 </StackPanel>
-                <ContentPresenter DockPanel.Dock="Bottom" Margin="0,10,0,0" ContentTemplate="{StaticResource MarketplaceComingSoon}" Content="{Binding}" />
+                <ContentPresenter DockPanel.Dock="Bottom" Margin="0,10,0,0" ContentTemplate="{StaticResource MarketplaceTeaser}" Content="{Binding}" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl ItemsSource="{Binding Plugins}" ItemTemplate="{StaticResource PluginCardTemplate}" AutomationProperties.Name="Plugins">
                         <ItemsControl.ItemsPanel>

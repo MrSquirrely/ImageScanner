@@ -158,12 +158,14 @@ public partial class SettingsViewModel : ObservableObject {
         };
         PluginEntries = [.. plugins.Plugins.Select(info => new PluginEntryViewModel(info, plugins))];
         Sources = [.. library.GetSources()];
+        Marketplace = new MarketplaceViewModel(plugins, settings);
     }
 
     public List<ITagSuggestionProvider> Providers { get; }
     public ObservableCollection<PluginEntryViewModel> PluginEntries { get; }
     public ObservableCollection<ScanSource> Sources { get; }
     public string PluginFolder => PluginManager.PluginDirectories.Last();
+    public MarketplaceViewModel Marketplace { get; }
 
     /// <summary>The General tab's PropertyGrid edits this; nothing is applied until Save.</summary>
     public SettingsSheet Sheet { get; }

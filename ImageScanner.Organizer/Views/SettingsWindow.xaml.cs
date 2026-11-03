@@ -18,4 +18,12 @@ public partial class SettingsWindow {
     }
 
     private void Save_Click(object sender, RoutedEventArgs e) => DialogResult = true;
+
+    // The marketplace asks GitHub for listings only when its tab is first opened; selection changes inside
+    // the tabs (e.g. the category chips) bubble up here too, so check the source
+    private async void Tabs_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) {
+        if (ReferenceEquals(e.OriginalSource, Tabs) && MarketplaceTab.IsSelected && DataContext is SettingsViewModel viewModel) {
+            await viewModel.Marketplace.EnsureLoadedAsync();
+        }
+    }
 }
