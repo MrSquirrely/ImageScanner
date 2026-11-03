@@ -1,15 +1,26 @@
 <!--
   Shared setup for plugin projects. Import it at the end of a plugin .csproj:
     <Import Project="..\build\Plugin.targets" />
-  After every build the plugin and its private dependencies are copied to
-  ImageScanner.Organizer\bin\<Configuration>\net10.0-windows\Plugins\<ProjectName>\ so F5 picks them up.
+
+  PluginDistribution decides how the plugin reaches users:
+    Bundled (default)  ships with PixShelf: after every build the plugin and its private dependencies are copied to
+                       ImageScanner.Organizer\bin\<Configuration>\net10.0-windows\Plugins\<ProjectName>\ so F5 picks
+                       them up, and the app records the DLL's hash as official.
+    Marketplace        download only: not copied into the app. Install it from Settings → Marketplace (or install the
+                       zip below by hand) to try it.
+  Release builds of every plugin also write artifacts\plugins\<ProjectName>.zip, the file a Marketplace post links to
+  (tools\Publish-Plugins.ps1 uploads it).
 -->
 <Project>
 
 	<PropertyGroup>
 		<!-- Puts NuGet dependencies in the output and writes a .deps.json the plugin load context can resolve -->
 		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<PluginDistribution Condition="'$(PluginDistribution)' == ''">Bundled</PluginDistribution>
 		<PluginOutputDir>$(MSBuildThisFileDirectory)..\ImageScanner.Organizer\bin\$(Configuration)\net10.0-windows\Plugins\$(MSBuildProjectName)\</PluginOutputDir>
+		<PluginPackageDir>$(MSBuildThisFileDirectory)..\artifacts\plugins\</PluginPackageDir>
+		<!-- Plugins compile against ImageSharp (through ImageScanner.Core), whose Release builds need the license file -->
+		<SixLaborsLicenseFile Condition="'$(SixLaborsLicenseFile)' == '' and Exists('$(MSBuildThisFileDirectory)..\sixlabors.lic')">$(MSBuildThisFileDirectory)..\sixlabors.lic</SixLaborsLicenseFile>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -20,13 +31,28 @@
 		</ProjectReference>
 	</ItemGroup>
 
-	<Target Name="CopyToOrganizerPlugins" AfterTargets="Build">
+	<Target Name="CollectPluginFiles">
 		<ItemGroup>
-			<PluginFiles Include="$(OutDir)**\*.dll;$(OutDir)$(TargetName).pdb;$(OutDir)$(TargetName).deps.json" />
+			<PluginFiles Include="$(OutDir)**\*.dll;$(OutDir)$(TargetName).deps.json" />
 			<!-- Assemblies the host already loads must come from the host, never from the plugin folder -->
 			<PluginFiles Remove="$(OutDir)ImageScanner.Core.dll;$(OutDir)ImageScanner.Plugins.Abstractions.dll;$(OutDir)LiteDB.dll;$(OutDir)SixLabors.ImageSharp.dll" />
 		</ItemGroup>
-		<Copy SourceFiles="@(PluginFiles)" DestinationFiles="@(PluginFiles->'$(PluginOutputDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+	</Target>
+
+	<Target Name="CopyToOrganizerPlugins" AfterTargets="Build" DependsOnTargets="CollectPluginFiles" Condition="'$(PluginDistribution)' == 'Bundled'">
+		<Copy SourceFiles="@(PluginFiles);$(OutDir)$(TargetName).pdb" DestinationFiles="@(PluginFiles->'$(PluginOutputDir)%(RecursiveDir)%(Filename)%(Extension)');$(PluginOutputDir)$(TargetName).pdb"
+		      SkipUnchangedFiles="true" />
+	</Target>
+
+	<Target Name="PackagePluginZip" AfterTargets="Build" DependsOnTargets="CollectPluginFiles" Condition="'$(Configuration)' == 'Release'">
+		<PropertyGroup>
+			<_PluginStaging>$(IntermediateOutputPath)plugin-package\</_PluginStaging>
+		</PropertyGroup>
+		<RemoveDir Directories="$(_PluginStaging)" />
+		<Copy SourceFiles="@(PluginFiles)" DestinationFiles="@(PluginFiles->'$(_PluginStaging)%(RecursiveDir)%(Filename)%(Extension)')" />
+		<MakeDir Directories="$(PluginPackageDir)" />
+		<ZipDirectory SourceDirectory="$(_PluginStaging)" DestinationFile="$(PluginPackageDir)$(MSBuildProjectName).zip" Overwrite="true" />
+		<Message Importance="high" Text="Plugin package: $(PluginPackageDir)$(MSBuildProjectName).zip" />
 	</Target>
 
 </Project>

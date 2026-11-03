@@ -6,6 +6,8 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<RootNamespace>ImageScanner.Plugins.Converter</RootNamespace>
+		<!-- Download only: published to the Marketplace, not shipped with the app -->
+		<PluginDistribution>Marketplace</PluginDistribution>
 	</PropertyGroup>
 
 	<ItemGroup>

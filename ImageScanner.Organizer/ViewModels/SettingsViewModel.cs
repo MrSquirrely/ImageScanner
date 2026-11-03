@@ -104,6 +104,25 @@ public partial class PluginEntryViewModel(PluginInfo info, PluginManager manager
         };
         window.ShowDialog();
     }
+
+    /// <summary>Only downloaded plugins can be uninstalled; the tagging plugins ship with PixShelf.</summary>
+    [RelayCommand]
+    private void Uninstall() => UninstallWithConfirmation(Info, manager);
+
+    [RelayCommand]
+    private void UndoUninstall() => manager.SetUninstalled(Info, uninstall: false);
+
+    internal static void UninstallWithConfirmation(PluginInfo info, PluginManager manager) {
+        if (HandyControl.Controls.MessageBox.Show(
+                $"Uninstall {info.Plugin.Name}?\n\nIt stays active until you restart PixShelf, then its files are removed. " +
+                "Its settings are kept, so reinstalling it from the Marketplace picks up where you left off.",
+                "Uninstall plugin", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Question) != System.Windows.MessageBoxResult.OK) {
+            return;
+        }
+
+        manager.SetUninstalled(info, uninstall: true);
+        Growl.Info($"{info.Plugin.Name} will be removed when you restart PixShelf.");
+    }
 }
 
 /// <summary>

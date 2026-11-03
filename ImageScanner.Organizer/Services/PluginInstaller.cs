@@ -108,13 +108,79 @@ public sealed class PluginInstaller(AppSettings settings) {
         }
     }
 
+    private static string UninstallListPath => Path.Combine(PendingDirectory, "uninstall.txt");
+
+    /// <summary>True for plugins installed in the user's Plugins folder (downloads); bundled ones ship with the app.</summary>
+    public static bool IsDownloaded(string assemblyPath) =>
+        Path.GetFullPath(assemblyPath).StartsWith(Path.GetFullPath(PluginsDirectory) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The plugin's folder name under Plugins, e.g. "pixshelf.converter".</summary>
+    public static string FolderOf(string assemblyPath) =>
+        Path.GetRelativePath(PluginsDirectory, Path.GetFullPath(assemblyPath)).Split(Path.DirectorySeparatorChar)[0];
+
+    public static bool IsUninstallPending(string folder) => ReadUninstallList().Contains(folder, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
-    /// Moves staged plugins into the Plugins folder. Runs at startup before any plugin is loaded.
+    /// Removes a downloaded plugin the next time PixShelf starts (its DLLs are locked while it runs).
+    /// A staged update for the same plugin is dropped too.
+    /// </summary>
+    public static void ScheduleUninstall(string folder) {
+        List<string> list = ReadUninstallList();
+        if (!list.Contains(folder, StringComparer.OrdinalIgnoreCase)) {
+            list.Add(folder);
+        }
+
+        WriteUninstallList(list);
+        string staged = Path.Combine(PendingDirectory, folder);
+        if (Directory.Exists(staged)) {
+            Directory.Delete(staged, recursive: true);
+        }
+    }
+
+    public static void CancelUninstall(string folder) =>
+        WriteUninstallList([.. ReadUninstallList().Where(item => !string.Equals(item, folder, StringComparison.OrdinalIgnoreCase))]);
+
+    private static List<string> ReadUninstallList() =>
+        File.Exists(UninstallListPath) ? [.. File.ReadAllLines(UninstallListPath).Select(line => line.Trim()).Where(line => line.Length > 0)] : [];
+
+    private static void WriteUninstallList(List<string> folders) {
+        if (folders.Count == 0) {
+            File.Delete(UninstallListPath);
+            return;
+        }
+
+        Directory.CreateDirectory(PendingDirectory);
+        File.WriteAllLines(UninstallListPath, folders);
+    }
+
+    /// <summary>
+    /// Removes uninstalled plugins and moves staged ones into the Plugins folder. Runs at startup before any
+    /// plugin is loaded.
     /// </summary>
     public static void ApplyPendingInstalls() {
         if (!Directory.Exists(PendingDirectory)) {
             return;
         }
+
+        List<string> stillPending = [];
+        foreach (string folder in ReadUninstallList()) {
+            // Only ever a direct child of the Plugins folder, whatever the list says
+            string target = Path.GetFullPath(Path.Combine(PluginsDirectory, folder));
+            if (!string.Equals(Path.GetDirectoryName(target), Path.GetFullPath(PluginsDirectory), StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
+            try {
+                if (Directory.Exists(target)) {
+                    Directory.Delete(target, recursive: true);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) {
+                stillPending.Add(folder);
+            }
+        }
+
+        WriteUninstallList(stillPending);
 
         foreach (string staged in Directory.EnumerateDirectories(PendingDirectory)) {
             string target = Path.Combine(PluginsDirectory, Path.GetFileName(staged));

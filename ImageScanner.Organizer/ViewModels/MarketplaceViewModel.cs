@@ -23,38 +23,55 @@ public enum MarketplaceInstallState {
     Installed,
     UpdateAvailable,
     RestartPending,
+    UninstallPending,
     NotInstallable
 }
 
-public partial class MarketplaceListingViewModel(MarketplaceListing listing, MarketplaceViewModel owner) : ObservableObject {
+/// <param name="installed">The loaded plugin this listing matches, if it's installed.</param>
+public partial class MarketplaceListingViewModel(MarketplaceListing listing, MarketplaceViewModel owner, PluginInfo? installed) : ObservableObject {
     public MarketplaceListing Listing { get; } = listing;
+    public PluginInfo? Installed { get; } = installed;
     public string Name => Listing.Name;
     public string Byline => $"by {Listing.Author}" + (Listing.Version != null ? $" · v{Listing.Version}" : string.Empty);
     public string CategoryLabel => $"{Listing.Category.Emoji} {Listing.Category.ShortName}";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ActionText), nameof(ActionName), nameof(CanInstall), nameof(StateText))]
+    [NotifyPropertyChangedFor(nameof(ActionText), nameof(ActionName), nameof(CanInstall), nameof(CanUninstall), nameof(StateText))]
     public partial MarketplaceInstallState State { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanInstall), nameof(StateText))]
+    [NotifyPropertyChangedFor(nameof(CanInstall), nameof(CanUninstall), nameof(StateText))]
     public partial string? Progress { get; set; }
 
     public bool CanInstall => Progress == null && State is MarketplaceInstallState.NotInstalled or MarketplaceInstallState.UpdateAvailable;
+
+    /// <summary>Downloaded plugins can be removed here too; the tagging plugins ship with PixShelf.</summary>
+    public bool CanUninstall => Progress == null && Installed is { IsDownloaded: true }
+                                && State is MarketplaceInstallState.Installed or MarketplaceInstallState.UpdateAvailable;
 
     public string ActionText => State == MarketplaceInstallState.UpdateAvailable ? "Update" : "Install";
 
     public string ActionName => $"{ActionText} {Name}";
 
     public string? StateText => Progress ?? State switch {
-        MarketplaceInstallState.Installed => "Installed",
+        MarketplaceInstallState.Installed => Installed is { IsIncluded: true } ? "Included with PixShelf" : "Installed",
         MarketplaceInstallState.RestartPending => "Restart PixShelf to finish",
+        MarketplaceInstallState.UninstallPending => "Removed when PixShelf restarts",
         MarketplaceInstallState.NotInstallable => "No valid download in the post",
         _ => null
     };
 
     [RelayCommand(CanExecute = nameof(CanInstall))]
     private Task InstallAsync() => owner.InstallAsync(this);
+
+    [RelayCommand]
+    private void Uninstall() {
+        if (Installed == null) return;
+        owner.Uninstall(Installed);
+        if (Installed.IsUninstallPending) {
+            State = MarketplaceInstallState.UninstallPending;
+        }
+    }
 
     [RelayCommand]
     private void Open() => MarketplaceViewModel.OpenUrl(Listing.DiscussionUrl);
@@ -126,7 +143,7 @@ public partial class MarketplaceViewModel(PluginManager plugins, AppSettings set
             MarketplaceClient.Result result = await client.GetListingsAsync(force, CancellationToken.None);
             Warning = result.Warning;
             LastUpdated = result.FetchedAt == DateTime.MinValue ? null : $"Updated {result.FetchedAt.ToLocalTime():g}";
-            all = [.. result.Listings.Select(listing => new MarketplaceListingViewModel(listing, this) { State = StateOf(listing) })];
+            all = [.. result.Listings.Select(listing => new MarketplaceListingViewModel(listing, this, InstalledPlugin(listing)) { State = StateOf(listing) })];
 
             string? selectedSlug = SelectedFilter?.Category?.Slug;
             Filters.Clear();
@@ -163,6 +180,11 @@ public partial class MarketplaceViewModel(PluginManager plugins, AppSettings set
         OnPropertyChanged(nameof(EmptyText));
     }
 
+    private PluginInfo? InstalledPlugin(MarketplaceListing listing) =>
+        listing.PluginId == null ? null : plugins.Plugins.FirstOrDefault(info => string.Equals(info.Plugin.Id, listing.PluginId, StringComparison.OrdinalIgnoreCase));
+
+    internal void Uninstall(PluginInfo info) => PluginEntryViewModel.UninstallWithConfirmation(info, plugins);
+
     private MarketplaceInstallState StateOf(MarketplaceListing listing) {
         if (!listing.IsInstallable) {
             return MarketplaceInstallState.NotInstallable;
@@ -172,9 +194,13 @@ public partial class MarketplaceViewModel(PluginManager plugins, AppSettings set
             return MarketplaceInstallState.RestartPending;
         }
 
-        PluginInfo? installed = plugins.Plugins.FirstOrDefault(info => string.Equals(info.Plugin.Id, listing.PluginId, StringComparison.OrdinalIgnoreCase));
+        PluginInfo? installed = InstalledPlugin(listing);
         if (installed == null) {
             return MarketplaceInstallState.NotInstalled;
+        }
+
+        if (installed.IsUninstallPending) {
+            return MarketplaceInstallState.UninstallPending;
         }
 
         return ParseVersion(listing.Version) is { } offered && offered > installed.Plugin.Version
