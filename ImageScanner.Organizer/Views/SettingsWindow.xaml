@@ -21,7 +21,16 @@
             <TabItem Header="General">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,12">
-                        <CheckBox Content="Dark theme" IsChecked="{Binding DarkTheme}" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Run setup wizard again" Command="{Binding RerunSetupCommand}"
+                                    ToolTip="Shows the first-run wizard the next time the app starts" />
+                            <CheckBox Content="Dark theme" IsChecked="{Binding DarkTheme}" />
+                        </DockPanel>
+
+                        <TextBlock Text="Open images with" FontWeight="SemiBold" Margin="0,18,0,4" />
+                        <RadioButton GroupName="Viewer" IsChecked="{Binding UseBuiltInViewer}" Content="Built-in viewer (zoom, pan, browse with arrow keys)" />
+                        <RadioButton GroupName="Viewer" Margin="0,6,0,0" IsChecked="{Binding UseSystemViewer}" Content="My computer's default image app" />
+                        <TextBlock Text="Comics always open in the built-in reader." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" />
 
                         <TextBlock Text="Library database" FontWeight="SemiBold" Margin="0,18,0,4" />
                         <DockPanel>
@@ -135,6 +144,14 @@
                         </ItemsControl>
                     </ScrollViewer>
                 </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Marketplace">
+                <StackPanel Margin="8,12">
+                    <ContentPresenter ContentTemplate="{StaticResource MarketplaceComingSoon}" Content="{Binding}" />
+                    <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                               Text="Want to build a plugin now? Reference ImageScanner.Plugins.Abstractions, implement IPlugin, and copy the build output into the Plugins folder (see the Plugins tab)." />
+                </StackPanel>
             </TabItem>
         </TabControl>
     </DockPanel>

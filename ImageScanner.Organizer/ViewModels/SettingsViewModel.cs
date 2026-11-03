@@ -83,6 +83,7 @@ public partial class SettingsViewModel : ObservableObject {
         Providers = [.. plugins.TagProviders];
         SelectedProvider = plugins.ActiveTagProvider;
         DarkTheme = settings.DarkTheme;
+        UseSystemViewer = settings.UseSystemViewer;
         MaxSuggestedTags = settings.MaxSuggestedTags;
         AiConcurrency = settings.AiConcurrency;
         SuggestTagsOnImport = settings.SuggestTagsOnImport;
@@ -104,6 +105,15 @@ public partial class SettingsViewModel : ObservableObject {
 
     [ObservableProperty]
     public partial bool DarkTheme { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UseBuiltInViewer))]
+    public partial bool UseSystemViewer { get; set; }
+
+    public bool UseBuiltInViewer {
+        get => !UseSystemViewer;
+        set => UseSystemViewer = !value;
+    }
 
     [ObservableProperty]
     public partial int MaxSuggestedTags { get; set; }
@@ -131,6 +141,7 @@ public partial class SettingsViewModel : ObservableObject {
     [RelayCommand]
     private void Save() {
         settings.DarkTheme = DarkTheme;
+        settings.UseSystemViewer = UseSystemViewer;
         settings.ActiveTagProviderId = SelectedProvider?.Id;
         settings.MaxSuggestedTags = Math.Clamp(MaxSuggestedTags, 1, 50);
         settings.AiConcurrency = Math.Clamp(AiConcurrency, 1, 16);
@@ -161,6 +172,13 @@ public partial class SettingsViewModel : ObservableObject {
         if (dialog.ShowDialog() == true) {
             LibraryPath = dialog.FileName;
         }
+    }
+
+    [RelayCommand]
+    private void RerunSetup() {
+        settings.FirstRunCompleted = false;
+        settings.Save();
+        Growl.Info("The setup wizard will open the next time you start Image Organizer.");
     }
 
     [RelayCommand]

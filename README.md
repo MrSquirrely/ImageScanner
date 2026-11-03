@@ -34,7 +34,7 @@ A desktop image organizer built on the `ImageScanner.Core.Library` catalog.
 * **AI tag suggestions** (Claude by default) on import or on demand. Suggestions are queued under *Needs AI review* where you accept them per tag or all at once, or they can be applied automatically.
 * **Plugins**: see below.
 
-Run it with `dotnet run --project ImageScanner.Organizer`. Pass `--library <file.db>` to open a different catalog for one session. Settings, the default library and per-plugin data live in `%LOCALAPPDATA%\ImageScanner\Organizer`.
+Run it with `dotnet run --project ImageScanner.Organizer`. On first launch a setup wizard picks the theme, library location, AI tagging, how images open (built-in viewer or the Windows default app) and which plugins to enable; rerun it from Settings or with `--first-run`. Pass `--library <file.db>` to open a different catalog for one session. Importing a whole drive asks for confirmation first, with an extra warning for the Windows system drive. Settings, the default library and per-plugin data live in `%LOCALAPPDATA%\ImageScanner\Organizer`.
 
 To use AI tagging, add an Anthropic API key under **Settings → Plugins → Built-in features** (stored encrypted with Windows DPAPI) or set `ANTHROPIC_API_KEY`. Each image is one request with a downscaled (≤1024px) copy of the image.
 

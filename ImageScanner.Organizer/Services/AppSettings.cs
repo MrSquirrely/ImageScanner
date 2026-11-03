@@ -16,8 +16,14 @@ public class AppSettings {
 
     private static string SettingsPath => Path.Combine(AppDataDirectory, "settings.json");
 
+    // False until the first-run wizard has been completed (or skipped)
+    public bool FirstRunCompleted { get; set; }
+
     public string LibraryPath { get; set; } = Path.Combine(AppDataDirectory, "library.db");
     public bool DarkTheme { get; set; }
+
+    // Open images with the Windows default app instead of the built-in viewer
+    public bool UseSystemViewer { get; set; }
     public double TileSize { get; set; } = 160;
     public string SortBy { get; set; } = "Date added";
 

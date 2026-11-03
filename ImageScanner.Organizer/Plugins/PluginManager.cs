@@ -32,7 +32,7 @@ public partial class PluginInfo(IPlugin plugin, string source, bool isBuiltIn) :
 /// Discovers, loads and hosts plugins. Built-in features (Claude tagging, Explorer actions) are
 /// registered through the same API third-party plugins use.
 /// </summary>
-public sealed class PluginManager(AppSettings settings, ImageLibrary library) : IPluginHost {
+public sealed class PluginManager(AppSettings settings) : IPluginHost {
     private PluginInfo? initializing;
 
     public ObservableCollection<PluginInfo> Plugins { get; } = [];
@@ -49,7 +49,8 @@ public sealed class PluginManager(AppSettings settings, ImageLibrary library) : 
         Path.Combine(AppSettings.AppDataDirectory, "Plugins")
     ];
 
-    public ImageLibrary Library => library;
+    // Set before InitializeEnabled; the first-run wizard may change which library file is opened
+    public ImageLibrary Library { get; set; } = null!;
 
     public IReadOnlyList<LibraryImage> SelectedImages => SelectionProvider();
 
@@ -57,8 +58,16 @@ public sealed class PluginManager(AppSettings settings, ImageLibrary library) : 
         TagProviders.FirstOrDefault(provider => provider.Id == settings.ActiveTagProviderId) ?? TagProviders.FirstOrDefault();
 
     public void LoadAll(IEnumerable<IPlugin> builtInPlugins) {
+        Discover(builtInPlugins);
+        InitializeEnabled();
+    }
+
+    /// <summary>
+    /// Finds built-in and folder plugins without initializing them, so the first-run wizard can list them.
+    /// </summary>
+    public void Discover(IEnumerable<IPlugin> builtInPlugins) {
         foreach (IPlugin plugin in builtInPlugins) {
-            Activate(new PluginInfo(plugin, "Built-in", isBuiltIn: true));
+            Add(new PluginInfo(plugin, "Built-in", isBuiltIn: true));
         }
 
         foreach (string directory in PluginDirectories.Where(Directory.Exists)) {
@@ -93,7 +102,7 @@ public sealed class PluginManager(AppSettings settings, ImageLibrary library) : 
             foreach (Type type in pluginTypes) {
                 try {
                     IPlugin plugin = (IPlugin)Activator.CreateInstance(type)!;
-                    Activate(new PluginInfo(plugin, assemblyPath, isBuiltIn: false));
+                    Add(new PluginInfo(plugin, assemblyPath, isBuiltIn: false));
                 }
                 catch (Exception exception) {
                     Growl.Error($"Plugin {type.FullName} failed to load: {exception.Message}");
@@ -102,17 +111,25 @@ public sealed class PluginManager(AppSettings settings, ImageLibrary library) : 
         }
     }
 
+    private void Add(PluginInfo info) {
+        if (Plugins.All(existing => existing.Plugin.Id != info.Plugin.Id)) {
+            Plugins.Add(info);
+        }
+    }
+
+    /// <summary>
+    /// Initializes every discovered plugin that isn't disabled in settings.
+    /// </summary>
+    public void InitializeEnabled() {
+        foreach (PluginInfo info in Plugins) {
+            info.IsEnabled = !settings.DisabledPlugins.Contains(info.Plugin.Id);
+            if (info.IsEnabled) {
+                Activate(info);
+            }
+        }
+    }
+
     private void Activate(PluginInfo info) {
-        if (Plugins.Any(existing => existing.Plugin.Id == info.Plugin.Id)) {
-            return;
-        }
-
-        Plugins.Add(info);
-        info.IsEnabled = !settings.DisabledPlugins.Contains(info.Plugin.Id);
-        if (!info.IsEnabled) {
-            return;
-        }
-
         initializing = info;
         try {
             info.Plugin.Initialize(this);

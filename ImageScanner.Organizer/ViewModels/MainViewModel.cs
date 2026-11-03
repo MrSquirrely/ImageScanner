@@ -683,6 +683,17 @@ public partial class MainViewModel : ObservableObject {
     private void OpenViewer(ImageItemViewModel? item) {
         item ??= Current;
         if (item == null) return;
+
+        if (Settings.UseSystemViewer) {
+            try {
+                Process.Start(new ProcessStartInfo(item.Model.FilePath) { UseShellExecute = true });
+            }
+            catch (Exception exception) {
+                Growl.Error($"Windows couldn't open {item.FileName}: {exception.Message}");
+            }
+            return;
+        }
+
         List<LibraryImage> images = [.. Images.Select(image => image.Model)];
         new ImageViewerWindow(images, Math.Max(0, images.IndexOf(item.Model))) { Owner = Owner }.Show();
     }

@@ -15,6 +15,27 @@
             <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
             <conv:NullToVisibilityConverter x:Key="NullToVisibility" />
             <conv:InverseBoolConverter x:Key="InverseBool" />
+            <conv:IndexToVisibilityConverter x:Key="IndexToVisibility" />
+
+            <!-- Shared "coming soon" card for the plugin marketplace (wizard + settings) -->
+            <DataTemplate x:Key="MarketplaceComingSoon">
+                <Border Padding="16" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" Background="{DynamicResource SecondaryRegionBrush}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE719;" FontSize="28" Margin="0,0,14,0"
+                                   VerticalAlignment="Center" Foreground="{DynamicResource PrimaryBrush}" />
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Plugin marketplace" FontWeight="SemiBold" FontSize="14" />
+                                <Border Margin="8,0,0,0" Padding="8,1" CornerRadius="9" Background="{DynamicResource PrimaryBrush}" VerticalAlignment="Center">
+                                    <TextBlock Text="Coming soon" Foreground="White" FontSize="11" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Text="Browse and install community plugins in one click. Until then, drop plugin folders into the Plugins folder and restart." />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </DataTemplate>
 
             <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
