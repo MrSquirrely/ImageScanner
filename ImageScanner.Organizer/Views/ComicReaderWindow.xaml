@@ -1,0 +1,106 @@
+<hc:Window x:Class="ImageScanner.Organizer.Views.ComicReaderWindow"
+           xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+           xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+           xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+           xmlns:hc="https://handyorg.github.io/handycontrol"
+           xmlns:vm="clr-namespace:ImageScanner.Organizer.ViewModels"
+           mc:Ignorable="d"
+           d:DataContext="{d:DesignInstance vm:ComicReaderViewModel}"
+           Title="{Binding Title}" Width="1280" Height="900" WindowStartupLocation="CenterOwner"
+           Background="{DynamicResource RegionBrush}">
+    <hc:Window.InputBindings>
+        <KeyBinding Key="Right" Command="{Binding NextCommand}" />
+        <KeyBinding Key="Space" Command="{Binding NextCommand}" />
+        <KeyBinding Key="PageDown" Command="{Binding NextCommand}" />
+        <KeyBinding Key="Left" Command="{Binding PreviousCommand}" />
+        <KeyBinding Key="PageUp" Command="{Binding PreviousCommand}" />
+        <KeyBinding Key="Home" Command="{Binding FirstCommand}" />
+        <KeyBinding Key="End" Command="{Binding LastCommand}" />
+    </hc:Window.InputBindings>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="230" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Reader toolbar -->
+        <DockPanel Grid.ColumnSpan="2" Margin="10,8" LastChildFill="False">
+            <Button DockPanel.Dock="Left" Command="{Binding FirstCommand}" ToolTip="First page (Home)" AutomationProperties.Name="First page">
+                <TextBlock Style="{StaticResource IconText}" Text="&#xE892;" />
+            </Button>
+            <Button DockPanel.Dock="Left" Margin="4,0,0,0" Command="{Binding PreviousCommand}" ToolTip="Previous (←)" AutomationProperties.Name="Previous page">
+                <TextBlock Style="{StaticResource IconText}" Text="&#xE76B;" />
+            </Button>
+            <TextBlock DockPanel.Dock="Left" Margin="12,0" VerticalAlignment="Center" MinWidth="140" TextAlignment="Center" Text="{Binding PageLabel}" />
+            <Button DockPanel.Dock="Left" Command="{Binding NextCommand}" ToolTip="Next (→ or Space)" AutomationProperties.Name="Next page">
+                <TextBlock Style="{StaticResource IconText}" Text="&#xE76C;" />
+            </Button>
+            <Button DockPanel.Dock="Left" Margin="4,0,0,0" Command="{Binding LastCommand}" ToolTip="Last page (End)" AutomationProperties.Name="Last page">
+                <TextBlock Style="{StaticResource IconText}" Text="&#xE893;" />
+            </Button>
+
+            <ToggleButton DockPanel.Dock="Left" Margin="20,0,0,0" Content="Two pages" IsChecked="{Binding TwoPageMode}" Style="{StaticResource ToggleButtonDefault}" />
+            <ToggleButton DockPanel.Dock="Left" Margin="6,0,0,0" Content="Right to left" IsChecked="{Binding RightToLeft}" Style="{StaticResource ToggleButtonDefault}"
+                          ToolTip="Manga order for two-page spreads" />
+            <ToggleButton DockPanel.Dock="Left" Margin="6,0,0,0" Content="Fit width" IsChecked="{Binding FitWidth}" Style="{StaticResource ToggleButtonDefault}"
+                          Checked="FitChanged" Unchecked="FitChanged" />
+
+            <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Rename" Command="{Binding SaveTitleCommand}" />
+            <TextBox DockPanel.Dock="Right" Width="260" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Comic title" />
+        </DockPanel>
+
+        <!-- Page display -->
+        <ScrollViewer x:Name="PageScroller" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"
+                      Background="Black" Focusable="False" MouseLeftButtonUp="Page_Click">
+            <!-- Pages are laid out at pixel size side by side, then the Viewbox scales the whole spread to fit -->
+            <Viewbox Stretch="Uniform">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="{Binding LeftPage}" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"
+                           Width="{Binding LeftPage.PixelWidth}" Height="{Binding LeftPage.PixelHeight}" />
+                    <Image Source="{Binding RightPage}" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"
+                           Width="{Binding RightPage.PixelWidth}" Height="{Binding RightPage.PixelHeight}"
+                           Visibility="{Binding RightPage, Converter={StaticResource NullToVisibility}}" />
+                </StackPanel>
+            </Viewbox>
+        </ScrollViewer>
+
+        <!-- Page list / reorder -->
+        <DockPanel Grid.Row="1" Grid.Column="1" Background="{DynamicResource SecondaryRegionBrush}">
+            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Text="PAGES" />
+            <WrapPanel DockPanel.Dock="Bottom" Margin="8">
+                <Button Margin="0,0,4,4" Command="{Binding MovePageUpCommand}" ToolTip="Move page earlier" AutomationProperties.Name="Move page up">
+                    <TextBlock Style="{StaticResource IconText}" Text="&#xE70E;" />
+                </Button>
+                <Button Margin="0,0,4,4" Command="{Binding MovePageDownCommand}" ToolTip="Move page later" AutomationProperties.Name="Move page down">
+                    <TextBlock Style="{StaticResource IconText}" Text="&#xE70D;" />
+                </Button>
+                <Button Margin="0,0,4,4" Content="Make cover" Command="{Binding MakeCoverCommand}" />
+                <Button Margin="0,0,4,4" Content="Remove" Command="{Binding RemovePageCommand}" ToolTip="Remove page from this comic (the image stays in your library)" />
+            </WrapPanel>
+            <ListBox ItemsSource="{Binding Pages}" SelectedItem="{Binding SelectedPage}" BorderThickness="0" Background="Transparent"
+                     VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     AutomationProperties.Name="Comic pages" SelectionChanged="PageList_SelectionChanged">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:ImageItemViewModel}">
+                        <DockPanel Height="74">
+                            <Image DockPanel.Dock="Left" Width="56" Source="{Binding Thumbnail}" Stretch="Uniform" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding Model.PageNumber}" FontWeight="SemiBold" DockPanel.Dock="Top" />
+                            <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SecondaryTextBrush}" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource ListBoxItemBaseStyle}">
+                        <Setter Property="AutomationProperties.Name" Value="{Binding FileName}" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+        </DockPanel>
+    </Grid>
+</hc:Window>

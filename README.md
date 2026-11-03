@@ -25,6 +25,33 @@ The terminal-based user interface and application entry point.
 * `SecureVault.cs`: Security and credential management.
 * `SoundEffects.cs`: Asynchronous audio feedback system.
 
+### 3. ImageScanner.Organizer (WPF + HandyControl)
+A desktop image organizer built on the `ImageScanner.Core.Library` catalog.
+* **Import** a folder or a whole drive. Rescans skip unchanged files, refresh changed ones, drop deleted ones and never lose your tags.
+* **Search** with free text plus filters: `tag:beach -tag:people cat:Wallpapers comic:"Space Saga" ext:png folder:Downloads rating>=4 is:fav is:untagged is:pending is:comic`.
+* **Tags and categories** with rename/merge, bulk editing of multiple selected images, favorites and 0–5 star ratings.
+* **Comics**: folders of numbered pages (or folders named "Chapter 3", "Vol. 2", "#12"…) are grouped automatically; you can also group any selection by hand. The reader supports two-page spreads, right-to-left order, fit-to-width and page reordering.
+* **AI tag suggestions** (Claude by default) on import or on demand. Suggestions are queued under *Needs AI review* where you accept them per tag or all at once, or they can be applied automatically.
+* **Plugins**: see below.
+
+Run it with `dotnet run --project ImageScanner.Organizer`. Pass `--library <file.db>` to open a different catalog for one session. Settings, the default library and per-plugin data live in `%LOCALAPPDATA%\ImageScanner\Organizer`.
+
+To use AI tagging, add an Anthropic API key under **Settings → Plugins → Built-in features** (stored encrypted with Windows DPAPI) or set `ANTHROPIC_API_KEY`. Each image is one request with a downscaled (≤1024px) copy of the image.
+
+### 4. Plugins
+Reference `ImageScanner.Plugins.Abstractions` and implement `IPlugin`. In `Initialize(IPluginHost host)` register any of:
+
+| Extension point | Shows up as |
+|---|---|
+| `ITagSuggestionProvider` | An AI provider choice in Settings → AI tagging |
+| `IImageAction` | An item in the gallery's right-click menu |
+| `IImportProcessor` | A step that runs on every newly imported image |
+| `IPluginCommand` | An item in the Tools menu |
+
+Implement `IConfigurablePlugin` to get a generated settings form (text, secret, number, toggle, choice). Plugins get the live `ImageLibrary`, the current selection, notifications and a private data folder through `IPluginHost`.
+
+Install a plugin by copying its build output to `Plugins\<PluginName>\<PluginName>.dll` next to the app or under `%LOCALAPPDATA%\ImageScanner\Organizer\Plugins`. Each plugin loads in its own `AssemblyLoadContext`, so it can ship its own dependencies. `ImageScanner.Plugins.Samples` is a working example (Ollama local tagging, folder-name tags, duplicate finder, `.txt` tag sidecars) that copies itself into the app's Plugins folder when built.
+
 ## Getting Started
 To run the application locally, ensure you have the .NET SDK installed for your environment.
 
