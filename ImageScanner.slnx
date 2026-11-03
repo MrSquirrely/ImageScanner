@@ -5,5 +5,7 @@
   <Project Path="ImageScanner.Organizer/ImageScanner.Organizer.csproj" />
   <Project Path="ImageScanner.Plugins.Abstractions/ImageScanner.Plugins.Abstractions.csproj" />
   <Project Path="ImageScanner.Plugins.Claude/ImageScanner.Plugins.Claude.csproj" />
+  <Project Path="ImageScanner.Plugins.Converter/ImageScanner.Plugins.Converter.csproj" />
+  <Project Path="ImageScanner.Plugins.Duplicates/ImageScanner.Plugins.Duplicates.csproj" />
   <Project Path="ImageScanner.Plugins.LocalTagger/ImageScanner.Plugins.LocalTagger.csproj" />
 </Solution>

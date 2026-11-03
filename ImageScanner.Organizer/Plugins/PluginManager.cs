@@ -24,6 +24,17 @@ public partial class PluginInfo(IPlugin plugin, string source, bool isBuiltIn, b
     /// </summary>
     public bool IsOfficial { get; } = isOfficial;
 
+    /// <summary>Installed in the user's Plugins folder (from the Marketplace or by hand), so it can be uninstalled.</summary>
+    public bool IsDownloaded => !IsBuiltIn && PluginInstaller.IsDownloaded(Source);
+
+    /// <summary>Shipped with PixShelf: built in, or in the app's own Plugins folder.</summary>
+    public bool IsIncluded => !IsDownloaded;
+
+    /// <summary>Uninstalled during this session; the files are removed when PixShelf restarts.</summary>
+    [ObservableProperty]
+    public partial bool IsUninstallPending { get; set; } = !isBuiltIn && PluginInstaller.IsDownloaded(source)
+                                                        && PluginInstaller.IsUninstallPending(PluginInstaller.FolderOf(source));
+
     [ObservableProperty]
     public partial bool IsEnabled { get; set; } = true;
 
@@ -121,9 +132,14 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     }
 
     private void LoadFolder(string folder) {
-        // Convention: Plugins\<Name>\<Name>.dll is the entry assembly; otherwise try every DLL in the folder
+        // Convention: Plugins\<Name>\<Name>.dll is the entry assembly. Marketplace installs are named after the plugin id,
+        // so otherwise use the DLLs that have their own .deps.json (a plugin's entry point; dependencies don't), and only
+        // as a last resort try every DLL
         string conventional = Path.Combine(folder, Path.GetFileName(folder) + ".dll");
-        IEnumerable<string> candidates = File.Exists(conventional) ? [conventional] : Directory.EnumerateFiles(folder, "*.dll");
+        List<string> withDeps = [.. Directory.EnumerateFiles(folder, "*.dll").Where(dll => File.Exists(Path.ChangeExtension(dll, ".deps.json")))];
+        IEnumerable<string> candidates = File.Exists(conventional) ? [conventional]
+                                         : withDeps.Count > 0 ? withDeps
+                                         : Directory.EnumerateFiles(folder, "*.dll");
 
         foreach (string assemblyPath in candidates) {
             string name = Path.GetFileNameWithoutExtension(assemblyPath);
@@ -156,6 +172,25 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     }
 
     /// <summary>
+    /// Schedules a downloaded plugin's folder for removal on the next start (or takes that back).
+    /// </summary>
+    public void SetUninstalled(PluginInfo info, bool uninstall) {
+        if (!info.IsDownloaded) {
+            return;
+        }
+
+        string folder = PluginInstaller.FolderOf(info.Source);
+        if (uninstall) {
+            PluginInstaller.ScheduleUninstall(folder);
+        }
+        else {
+            PluginInstaller.CancelUninstall(folder);
+        }
+
+        info.IsUninstallPending = uninstall;
+    }
+
+    /// <summary>
     /// True when the file is byte-for-byte one of the plugins bundled with this build (see GenerateOfficialPluginHashes),
     /// or one installed from a Marketplace post by the PixShelf team after its download hash was verified.
     /// </summary>
@@ -171,9 +206,17 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
         }
     }
 
+    /// <summary>
+    /// Adds a discovered plugin. When the same plugin is found twice (an included plugin and a newer copy installed
+    /// from the Marketplace), the higher version wins; uninstalling the update brings back the included one.
+    /// </summary>
     private void Add(PluginInfo info) {
-        if (Plugins.All(existing => existing.Plugin.Id != info.Plugin.Id)) {
+        int index = Plugins.ToList().FindIndex(existing => existing.Plugin.Id == info.Plugin.Id);
+        if (index < 0) {
             Plugins.Add(info);
+        }
+        else if (info.Plugin.Version > Plugins[index].Plugin.Version) {
+            Plugins[index] = info;
         }
     }
 

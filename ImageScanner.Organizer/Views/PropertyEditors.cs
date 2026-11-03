@@ -37,6 +37,22 @@ public sealed class ChoicePropertyEditor : PropertyEditorBase {
 }
 
 /// <summary>
+/// A plugin setting row: shows the setting's own editor (text, presets, Browse…, password, switch or choice) from
+/// PluginSettingEditorTemplate. That template binds to the setting directly, so the grid's binding isn't used.
+/// </summary>
+public sealed class PluginSettingPropertyEditor : PropertyEditorBase {
+    public override FrameworkElement CreateElement(PropertyItem propertyItem) => new ContentPresenter {
+        Content = propertyItem.Value is { } sheet ? TypeDescriptor.GetProperties(sheet)[propertyItem.PropertyName]?.GetValue(sheet) : null,
+        ContentTemplate = (DataTemplate)Application.Current.FindResource("PluginSettingEditorTemplate")
+    };
+
+    public override void CreateBinding(PropertyItem propertyItem, DependencyObject element) {
+    }
+
+    public override DependencyProperty GetDependencyProperty() => ContentPresenter.ContentProperty;
+}
+
+/// <summary>
 /// The library file row: the path plus a Change… button that picks (or names) a .db file.
 /// </summary>
 public sealed class LibraryPathPropertyEditor : PropertyEditorBase {

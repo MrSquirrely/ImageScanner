@@ -1,0 +1,81 @@
+<hc:Window x:Class="ImageScanner.Plugins.Converter.ConvertWindow"
+           xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+           xmlns:hc="https://handyorg.github.io/handycontrol"
+           Title="Convert images" Width="860" Height="700" MinWidth="640" MinHeight="480"
+           WindowStartupLocation="CenterOwner" Background="{DynamicResource RegionBrush}">
+    <DockPanel>
+        <!-- Options -->
+        <Border DockPanel.Dock="Top" Padding="16,12" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid x:Name="OptionsPanel">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Convert to" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <ComboBox x:Name="FormatBox" Grid.Column="1" SelectionChanged="Format_SelectionChanged" AutomationProperties.Name="Convert to" />
+
+                <TextBlock Grid.Column="2" Text="Quality" VerticalAlignment="Center" Margin="18,0,10,0" />
+                <DockPanel Grid.Column="3">
+                    <TextBlock DockPanel.Dock="Right" MinWidth="28" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Value, ElementName=QualitySlider, StringFormat={}{0:0}}" />
+                    <Slider x:Name="QualitySlider" Minimum="1" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                            AutomationProperties.Name="Quality" />
+                </DockPanel>
+
+                <TextBlock Grid.Row="1" Text="Save to" VerticalAlignment="Center" Margin="0,10,10,0" />
+                <ComboBox x:Name="LocationBox" Grid.Row="1" Grid.Column="1" Margin="0,10,0,0" SelectionChanged="Location_SelectionChanged"
+                          AutomationProperties.Name="Save converted images" />
+                <DockPanel x:Name="FolderPanel" Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Margin="18,10,0,0">
+                    <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Browse…" Click="Browse_Click" AutomationProperties.Name="Browse for output folder" />
+                    <TextBox x:Name="FolderBox" AutomationProperties.Name="Output folder" />
+                </DockPanel>
+
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,12,0,0">
+                    <CheckBox x:Name="SmallerOnlyBox" Content="Only keep files that got smaller" />
+                    <CheckBox x:Name="MetadataBox" Margin="20,0,0,0" Content="Keep metadata (EXIF, color profile)" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Summary and actions -->
+        <Border DockPanel.Dock="Bottom" Padding="16,12" Background="{DynamicResource SecondaryRegionBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="OpenFolderButton" Content="Open output folder" Visibility="Collapsed" Click="OpenFolder_Click" Margin="0,0,8,0" />
+                    <Button x:Name="ConvertButton" Style="{StaticResource ButtonPrimary}" Click="Convert_Click" MinWidth="110" AutomationProperties.Name="Convert" />
+                    <Button x:Name="CloseButton" Margin="8,0,0,0" Content="Close" Click="Close_Click" MinWidth="80" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="SummaryText" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.Name="Result summary" />
+                    <TextBlock x:Name="DetailText" Margin="0,2,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    <ProgressBar x:Name="Progress" Height="8" Margin="0,8,0,0" Style="{StaticResource ProgressBarFlat}" Visibility="Collapsed" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- One row per image: before, after and the difference -->
+        <DataGrid x:Name="ResultsGrid" Margin="16,12" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                  CanUserAddRows="False" SelectionMode="Single" AutomationProperties.Name="Conversion results">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Image" Binding="{Binding Name}" Width="*" />
+                <DataGridTextColumn Header="Original" Binding="{Binding OriginalText}" Width="100" />
+                <DataGridTextColumn Header="Converted" Binding="{Binding ConvertedText}" Width="100" />
+                <DataGridTemplateColumn Header="Change" Width="190">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding ChangeText}" Foreground="{Binding ChangeBrush}" ToolTip="{Binding OutputPath}" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</hc:Window>

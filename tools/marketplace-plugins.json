@@ -1,0 +1,41 @@
+{
+  "$comment": "Marketplace listings for the plugins in this repository, published by tools/Publish-Plugins.ps1. Keep each version in step with the plugin's Version property: the app offers an update when the listed version is higher than the installed one.",
+  "plugins": [
+    {
+      "project": "ImageScanner.Plugins.LocalTagger",
+      "id": "local.tagger",
+      "name": "Local AI tagging",
+      "version": "1.0",
+      "category": "ai-tagging-plugins",
+      "title": "Local AI tagging (included with PixShelf)",
+      "description": "Tags, captions and finds the artist of your images with a vision model running on your own PC through KoboldCpp. Free and private: images never leave your computer.\n\nIncluded with PixShelf: install from here only when this post lists a newer version than yours. You need KoboldCpp and a vision model with its mmproj file (for example JoyCaption or Qwen); set their paths in the plugin's settings and PixShelf starts KoboldCpp when it's needed. Tag prompts for booru-style, e621 and Danbooru tags are built in and editable."
+    },
+    {
+      "project": "ImageScanner.Plugins.Claude",
+      "id": "anthropic.claude",
+      "name": "Claude AI tagging",
+      "version": "1.0",
+      "category": "ai-tagging-plugins",
+      "title": "Claude AI tagging (included with PixShelf)",
+      "description": "Tags images, picks a category, writes a description and reads artist signatures with Anthropic's Claude.\n\nIncluded with PixShelf: install from here only when this post lists a newer version than yours. Needs an Anthropic API key (stored encrypted on your PC); each image is one paid API request."
+    },
+    {
+      "project": "ImageScanner.Plugins.Duplicates",
+      "id": "pixshelf.duplicates",
+      "name": "Duplicate finder",
+      "version": "1.0",
+      "category": "tool-plugins",
+      "title": "Duplicate finder",
+      "description": "Finds duplicate and look-alike images in your library (resized, re-saved or lightly edited copies) using DuplaImage.Lib's perceptual hashes, and lets you send the copies you don't want to the Recycle Bin.\n\nOpen it from Tools → Find duplicate images…, or right-click an image → Find duplicates of this image. Choose the comparison method and how similar images must be, review each group (the copy with the most pixels is marked Best), tick the copies to remove or use \"Select all but the best\". Deleted files go to the Recycle Bin and are removed from the library. Hashes are cached, so later scans only read new or changed files."
+    },
+    {
+      "project": "ImageScanner.Plugins.Converter",
+      "id": "pixshelf.converter",
+      "name": "Batch converter",
+      "version": "1.0",
+      "category": "image-action-plugins",
+      "title": "Batch converter (AVIF, WebP, JPEG XL …)",
+      "description": "Converts the selected images to AVIF (default), WebP, JPEG XL, JPEG or PNG and shows how much space it saved: each file's original and new size, and the total.\n\nRight-click → Convert images…, or Tools → Batch convert images…. Choose the quality and where to save (a \"converted\" folder next to each image by default). Originals are never changed. \"Only keep files that got smaller\" discards conversions that didn't help. Uses Magick.NET (ImageMagick), so it is about a 12 MB download."
+    }
+  ]
+}

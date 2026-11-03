@@ -179,6 +179,9 @@
                                                     <Button DockPanel.Dock="Right" Style="{StaticResource ButtonPrimary}" Content="{Binding ActionText}" Command="{Binding InstallCommand}"
                                                             Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}"
                                                             AutomationProperties.Name="{Binding ActionName}" />
+                                                    <Button DockPanel.Dock="Right" Margin="0,0,6,0" Content="Uninstall" Command="{Binding UninstallCommand}"
+                                                            Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVisibility}}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat=Uninstall {0}}" />
                                                     <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0" Text="{Binding StateText}"
                                                                Foreground="{DynamicResource SecondaryTextBrush}" />
                                                     <Button DockPanel.Dock="Left" Padding="8,0" Command="{Binding OpenCommand}" ToolTip="Open the discussion on GitHub"

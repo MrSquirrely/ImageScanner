@@ -31,6 +31,8 @@
 		<!-- Bundled plugins: built first so they land in bin\...\Plugins, but never referenced by the app itself -->
 		<ProjectReference Include="..\ImageScanner.Plugins.LocalTagger\ImageScanner.Plugins.LocalTagger.csproj" ReferenceOutputAssembly="false" Private="false" />
 		<ProjectReference Include="..\ImageScanner.Plugins.Claude\ImageScanner.Plugins.Claude.csproj" ReferenceOutputAssembly="false" Private="false" />
+		<!-- The duplicate finder and batch converter are download only (PluginDistribution=Marketplace), so they aren't listed here -->
+
 	</ItemGroup>
 
 	<!--
