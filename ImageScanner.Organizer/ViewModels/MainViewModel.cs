@@ -176,6 +176,9 @@ public partial class MainViewModel : ObservableObject {
     };
 
     public bool HasSelection => SelectionCount > 0;
+
+    /// <summary>True when every selected image is a favorite; drives the Favorite button's on state.</summary>
+    public bool IsSelectionFavorite => selection.Count > 0 && selection.All(item => item.IsFavorite);
     public bool IsMultiSelection => SelectionCount > 1;
     public bool HasSuggestions => SuggestedTags.Count > 0 || !string.IsNullOrEmpty(SuggestedCategory);
     public string SelectionHeader => SelectionCount switch {
@@ -380,6 +383,7 @@ public partial class MainViewModel : ObservableObject {
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(IsMultiSelection));
         OnPropertyChanged(nameof(HasSuggestions));
+        OnPropertyChanged(nameof(IsSelectionFavorite));
         OnPropertyChanged(nameof(SelectionHeader));
         OnPropertyChanged(nameof(CurrentFileSize));
         RaiseEmptyState();

@@ -115,7 +115,10 @@ internal sealed class LocalTagProvider(LocalTaggerPlugin plugin, IPluginHost hos
             ApiPassword = Setting(LocalTaggerPlugin.PasswordSetting),
             KoboldCppPath = Setting(LocalTaggerPlugin.KoboldCppPathSetting),
             ModelPath = Setting(LocalTaggerPlugin.ModelPathSetting),
-            MmprojPath = Setting(LocalTaggerPlugin.MmprojPathSetting)
+            MmprojPath = Setting(LocalTaggerPlugin.MmprojPathSetting),
+            ResponseTimeout = TimeSpan.FromSeconds(Math.Clamp(ReadInt(LocalTaggerPlugin.ResponseTimeoutSetting, 300), 10, 3600)),
+            ShowConsole = bool.TryParse(Setting(LocalTaggerPlugin.ShowConsoleSetting), out bool showConsole) && showConsole,
+            LogPath = Path.Combine(host.GetDataDirectory(plugin), "koboldcpp.log")
         };
     }
 

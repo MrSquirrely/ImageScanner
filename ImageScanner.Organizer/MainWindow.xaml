@@ -327,15 +327,42 @@
                         </Border>
 
                         <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Command="{Binding ToggleFavoriteCommand}" ToolTip="Toggle favorite (Ctrl+D)" AutomationProperties.Name="Toggle favorite">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE734;" Margin="0,0,6,0" />
-                                    <TextBlock Text="Favorite" />
-                                </StackPanel>
+                            <Button Command="{Binding ToggleFavoriteCommand}" ToolTip="Toggle favorite (Ctrl+D)">
+                                <!-- Outline star when not a favorite; filled gold star and "Favorited" when it is -->
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ButtonDefault}">
+                                        <Setter Property="AutomationProperties.Name" Value="Add to favorites" />
+                                        <Setter Property="Content">
+                                            <Setter.Value>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource IconText}" Text="&#xE734;" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Favorite" />
+                                                </StackPanel>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelectionFavorite}" Value="True">
+                                                <Setter Property="AutomationProperties.Name" Value="Remove from favorites" />
+                                                <Setter Property="Background" Value="#33F9A825" />
+                                                <Setter Property="BorderBrush" Value="#F9A825" />
+                                                <Setter Property="Content">
+                                                    <Setter.Value>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Style="{StaticResource IconText}" Text="&#xE735;" Margin="0,0,6,0" Foreground="#F9A825" />
+                                                            <TextBlock Text="Favorited" />
+                                                        </StackPanel>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                             </Button>
                             <hc:Rate x:Name="RatingControl" Margin="12,0,0,0" Count="5" VerticalAlignment="Center" AllowClear="True"
                                      Value="{Binding Current.Rating, Mode=OneWay}" ValueChanged="Rating_ValueChanged"
+                                     Foreground="#F9A825" Background="{DynamicResource SecondaryTextBrush}"
                                      AutomationProperties.Name="Rating" />
+                            <!-- Rate colors: Foreground = filled stars (gold, like Favorited), Background = empty stars (the theme default is near-invisible) -->
                         </StackPanel>
 
                         <TextBlock Style="{StaticResource SectionHeader}" Margin="0,16,0,4" Text="CATEGORY" />

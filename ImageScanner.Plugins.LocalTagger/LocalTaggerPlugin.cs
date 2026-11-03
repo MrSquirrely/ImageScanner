@@ -21,6 +21,8 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
     internal const string DepluralizeSetting = "Depluralize";
     internal const string TagPromptSetting = "TagPrompt";
     internal const string CaptionPromptSetting = "CaptionPrompt";
+    internal const string ResponseTimeoutSetting = "ResponseTimeoutSeconds";
+    internal const string ShowConsoleSetting = "ShowKoboldCppConsole";
 
     internal const string TagsAndCaptionMode = "Tags and caption";
     internal const string TagsOnlyMode = "Tags only";
@@ -60,6 +62,8 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
         new(MmprojPathSetting, "Vision projector .gguf (optional)", PluginSettingKind.FilePath,
             Description: "The mmproj file that pairs with a .gguf model. Not needed with a .kcpps config.",
             FileFilter: "Vision projector (*mmproj*.gguf)|*mmproj*.gguf|Model files (*.gguf)|*.gguf"),
+        new(ShowConsoleSetting, "Show KoboldCpp's console window", PluginSettingKind.Toggle, "false",
+            "Only applies when the app starts KoboldCpp. Hidden by default because clicking inside a console window pauses the program; output goes to koboldcpp.log in the plugin's data folder."),
         new(ModelNameSetting, "Model name (optional)", PluginSettingKind.Text,
             Description: "Only needed for servers that host several models (LM Studio, Ollama). Defaults to the first model the server lists."),
         new(PasswordSetting, "Server password (optional)", PluginSettingKind.Secret),
@@ -74,6 +78,8 @@ public sealed class LocalTaggerPlugin : IPlugin, IConfigurablePlugin, ITagProvid
         new(ImageSizeSetting, "Image size sent to the model (px)", PluginSettingKind.Number, "768",
             "Longest edge. 392 to 896 works well; larger is slower and not always better."),
         new(MaxTokensSetting, "Max tokens per reply", PluginSettingKind.Number, "300"),
+        new(ResponseTimeoutSetting, "Response timeout (seconds)", PluginSettingKind.Number, "300",
+            "How long to wait for one reply. Raise it if tagging runs on a CPU and replies take minutes."),
         new(TemperatureSetting, "Temperature", PluginSettingKind.Number, "0.1", "Lower gives more consistent tags. 0.1 to 0.5 recommended."),
         new(MaxWordsSetting, "Max words per tag", PluginSettingKind.Number, "4",
             "Longer tags are dropped. Booru tags such as looking_at_viewer have three words."),

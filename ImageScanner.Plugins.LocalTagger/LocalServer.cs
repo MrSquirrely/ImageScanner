@@ -13,6 +13,15 @@ public sealed class LocalServerOptions {
     public string? KoboldCppPath { get; init; }
     public string? ModelPath { get; init; }
     public string? MmprojPath { get; init; }
+
+    /// <summary>How long to wait for one reply before giving up (generation on a CPU can be slow).</summary>
+    public TimeSpan ResponseTimeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Show KoboldCpp's console when we start it. Off by default: clicking into a console pauses the program in it.</summary>
+    public bool ShowConsole { get; init; }
+
+    /// <summary>Where KoboldCpp's output goes when its console is hidden.</summary>
+    public string? LogPath { get; init; }
 }
 
 /// <summary>
@@ -22,7 +31,10 @@ public sealed class LocalServerOptions {
 public sealed class LocalServer : IDisposable {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
 
-    private readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(10) };
+    // Per-request deadlines come from LocalServerOptions.ResponseTimeout, so the client itself never times out
+    private readonly HttpClient http = new() { Timeout = Timeout.InfiniteTimeSpan };
+    private readonly Lock logLock = new();
+    private StreamWriter? log;
     private readonly SemaphoreSlim startLock = new(1, 1);
     private Process? startedProcess;
     private DateTime lastHealthy = DateTime.MinValue;
@@ -56,11 +68,7 @@ public sealed class LocalServer : IDisposable {
             }
 
             if (startedProcess is not { HasExited: false }) {
-                startedProcess = Process.Start(new ProcessStartInfo(options.KoboldCppPath, BuildArguments(options)) {
-                    UseShellExecute = true,
-                    WindowStyle = ProcessWindowStyle.Minimized,
-                    WorkingDirectory = Path.GetDirectoryName(options.KoboldCppPath)!
-                });
+                startedProcess = StartKoboldCpp(options);
             }
 
             // Loading a vision model can take a while, especially the first time
@@ -104,50 +112,126 @@ public sealed class LocalServer : IDisposable {
     /// </summary>
     public async Task<string?> GetDefaultModelAsync(LocalServerOptions options, CancellationToken cancellationToken) {
         try {
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
             using HttpRequestMessage request = CreateRequest(HttpMethod.Get, options, "v1/models");
-            using HttpResponseMessage response = await http.SendAsync(request, cancellationToken);
-            JsonNode? body = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+            using HttpResponseMessage response = await http.SendAsync(request, timeout.Token);
+            JsonNode? body = await response.Content.ReadFromJsonAsync<JsonNode>(timeout.Token);
             return body?["data"]?[0]?["id"]?.GetValue<string>();
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidOperationException) {
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidOperationException
+                                              or OperationCanceledException && !cancellationToken.IsCancellationRequested) {
             return null;
         }
     }
 
     /// <summary>
-    /// Sends a chat completion request and returns the assistant's text.
+    /// Sends a chat completion request and returns the assistant's text. A dropped connection is retried
+    /// once after checking the server is still up; a reply that takes longer than the response timeout
+    /// stops the batch with an explanation.
     /// </summary>
     public async Task<string?> ChatAsync(LocalServerOptions options, JsonObject payload, CancellationToken cancellationToken) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return await SendChatAsync(options, payload, cancellationToken);
+            }
+            catch (HttpRequestException exception) when (attempt == 1) {
+                // Local servers often close idle connections or restart; give it a moment and try again
+                Debug.WriteLine($"Local AI request failed, retrying: {exception.Message}");
+                lastHealthy = DateTime.MinValue;
+                await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+                await EnsureRunningAsync(options, cancellationToken);
+            }
+            catch (HttpRequestException exception) {
+                lastHealthy = DateTime.MinValue;
+                throw new TagProviderException(
+                    $"Lost connection to the local AI server at {options.BaseUrl}. If KoboldCpp is still running, check its window: " +
+                    "clicking inside a console window pauses the program (the title shows \"Select\"); press Esc there to resume.",
+                    isConfigurationError: true, exception);
+            }
+        }
+    }
+
+    private async Task<string?> SendChatAsync(LocalServerOptions options, JsonObject payload, CancellationToken cancellationToken) {
         using HttpRequestMessage request = CreateRequest(HttpMethod.Post, options, "v1/chat/completions");
         request.Content = JsonContent.Create(payload);
 
-        HttpResponseMessage response;
-        try {
-            response = await http.SendAsync(request, cancellationToken);
-        }
-        catch (HttpRequestException exception) {
-            lastHealthy = DateTime.MinValue;
-            throw new TagProviderException($"Lost connection to the local AI server at {options.BaseUrl}.", isConfigurationError: true, exception);
-        }
+        // A fresh connection per request: reusing one the server already closed is a common cause of failed requests
+        request.Headers.ConnectionClose = true;
 
-        using (response) {
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.ResponseTimeout);
+        try {
+            using HttpResponseMessage response = await http.SendAsync(request, deadline.Token);
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) {
                 throw new TagProviderException("The local AI server rejected the password. Check it in Settings → Plugins → Local AI tagging.", isConfigurationError: true);
             }
 
             if (!response.IsSuccessStatusCode) {
-                string detail = await response.Content.ReadAsStringAsync(cancellationToken);
+                string detail = await response.Content.ReadAsStringAsync(deadline.Token);
                 throw new TagProviderException($"The local AI server returned {(int)response.StatusCode}: {Truncate(detail, 200)}");
             }
 
             try {
-                JsonNode? body = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+                JsonNode? body = await response.Content.ReadFromJsonAsync<JsonNode>(deadline.Token);
                 JsonNode? choice = body?["choices"]?[0];
                 return choice?["message"]?["content"]?.GetValue<string>() ?? choice?["text"]?.GetValue<string>();
             }
             catch (Exception exception) when (exception is JsonException or InvalidOperationException) {
                 throw new TagProviderException("The local AI server sent a response that isn't valid JSON.", innerException: exception);
             }
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested) {
+            lastHealthy = DateTime.MinValue;
+            throw new TagProviderException(
+                $"The local AI server didn't answer within {options.ResponseTimeout.TotalSeconds:0} seconds. If its console window's title shows " +
+                "\"Select\", it's paused: click into it and press Esc. On a slow (CPU-only) PC, raise the response timeout in the plugin's settings.",
+                isConfigurationError: true, exception);
+        }
+    }
+
+    private Process? StartKoboldCpp(LocalServerOptions options) {
+        ProcessStartInfo start = new(options.KoboldCppPath!, BuildArguments(options)) {
+            WorkingDirectory = Path.GetDirectoryName(options.KoboldCppPath)!
+        };
+
+        if (options.ShowConsole || options.LogPath == null) {
+            start.UseShellExecute = true;
+            start.WindowStyle = ProcessWindowStyle.Minimized;
+            return Process.Start(start);
+        }
+
+        // No console: nothing for a stray click to pause. Output is kept in a log for troubleshooting.
+        start.UseShellExecute = false;
+        start.CreateNoWindow = true;
+        start.RedirectStandardOutput = true;
+        start.RedirectStandardError = true;
+
+        lock (logLock) {
+            log?.Dispose();
+            log = new StreamWriter(options.LogPath, append: false) { AutoFlush = true };
+            log.WriteLine($"[{DateTime.Now:u}] {start.FileName} {start.Arguments}");
+        }
+
+        Process? process = Process.Start(start);
+        if (process != null) {
+            // Both streams must be drained, or KoboldCpp blocks once the pipe buffer fills up
+            process.OutputDataReceived += (_, e) => WriteLog(e.Data);
+            process.ErrorDataReceived += (_, e) => WriteLog(e.Data);
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+        }
+
+        return process;
+    }
+
+    private void WriteLog(string? line) {
+        if (line == null) {
+            return;
+        }
+
+        lock (logLock) {
+            log?.WriteLine(line);
         }
     }
 
@@ -200,5 +284,9 @@ public sealed class LocalServer : IDisposable {
 
         startedProcess?.Dispose();
         http.Dispose();
+        lock (logLock) {
+            log?.Dispose();
+            log = null;
+        }
     }
 }
