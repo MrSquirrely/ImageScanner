@@ -1,7 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 using HandyControl.Controls;
+
+using ImageScanner.Core.Library;
 
 using ImageScanner.Organizer.Plugins;
 using ImageScanner.Organizer.Services;
@@ -12,10 +15,19 @@ namespace ImageScanner.Organizer.Views;
 
 public partial class ImportWindow {
     private readonly AppSettings settings;
+    private readonly ImageLibrary library;
+    private readonly FolderTreeViewModel folders = new();
+    private readonly DispatcherTimer reloadTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
 
-    public ImportWindow(AppSettings settings, PluginManager plugins) {
+    public ImportWindow(AppSettings settings, PluginManager plugins, ImageLibrary library) {
         InitializeComponent();
         this.settings = settings;
+        this.library = library;
+        DataContext = folders;
+        reloadTimer.Tick += async (_, _) => {
+            reloadTimer.Stop();
+            await ReloadFoldersAsync();
+        };
 
         DriveBox.ItemsSource = DriveInfo.GetDrives().Where(drive => drive.IsReady).Select(drive => drive.Name).ToList();
         IgnoredBox.Text = settings.IgnoredFolders;
@@ -86,10 +98,58 @@ public partial class ImportWindow {
 
     private void SuggestBox_Changed(object sender, RoutedEventArgs e) => AutoApplyBox.IsEnabled = SuggestBox.IsChecked == true;
 
-    private void Import_Click(object sender, RoutedEventArgs e) {
+    private void PathBox_TextChanged(object sender, TextChangedEventArgs e) => ScheduleReload();
+
+    private void IgnoredBox_TextChanged(object sender, TextChangedEventArgs e) => ScheduleReload();
+
+    private void ScheduleReload() {
+        reloadTimer.Stop();
+        reloadTimer.Start();
+    }
+
+    private IEnumerable<string> SkipNames() =>
+        IgnoredBox.Text.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>
+    /// Shows the folders of the path in the box. Folders already unticked stay unticked; for a folder that was
+    /// imported before, the ones skipped last time start unticked.
+    /// </summary>
+    private async Task ReloadFoldersAsync() {
+        string path = PathBox.Text.Trim();
+        if (path.Length == 0 || !Path.IsPathRooted(path) || !Directory.Exists(path)) {
+            folders.Clear();
+            return;
+        }
+
+        string fullPath = Path.GetFullPath(path);
+        List<string> excluded = folders.RootPath != null && string.Equals(folders.RootPath.TrimEnd('\\'), fullPath.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)
+                                    ? folders.ExcludedPaths()
+                                    : PreviouslyExcluded(fullPath);
+        await folders.LoadAsync(fullPath, SkipNames(), excluded);
+    }
+
+    private List<string> PreviouslyExcluded(string fullPath) =>
+        library.GetSources().FirstOrDefault(source => string.Equals(source.RootPath.TrimEnd('\\'), fullPath.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+               ?.IgnoredFolders.Where(Path.IsPathRooted).ToList()
+        ?? [];
+
+    private async void Import_Click(object sender, RoutedEventArgs e) {
         string path = PathBox.Text.Trim();
         if (!Directory.Exists(path)) {
             HandyControl.Controls.MessageBox.Show("Choose a folder or drive that exists.", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Typed and clicked Import before the folder list caught up
+        if (reloadTimer.IsEnabled || folders.RootPath == null
+            || !string.Equals(folders.RootPath.TrimEnd('\\'), Path.GetFullPath(path).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) {
+            reloadTimer.Stop();
+            await ReloadFoldersAsync();
+        }
+
+        if (folders.NothingSelected) {
+            HandyControl.Controls.MessageBox.Show("Every folder is unticked, so there's nothing to import. Tick the folders you want to scan.",
+                                                  Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -103,7 +163,10 @@ public partial class ImportWindow {
         settings.AutoApplySuggestions = AutoApplyBox.IsChecked == true;
         settings.Save();
 
-        Result = new ImportRequest(path, [.. settings.GetIgnoredFolders()], settings.DetectComics, settings.SuggestTagsOnImport, settings.AutoApplySuggestions);
+        // Names are skipped anywhere; the unticked folders by their full path. Both are kept with the imported folder
+        // so rescans skip the same folders.
+        Result = new ImportRequest(path, [.. settings.GetIgnoredFolders(), .. folders.ExcludedPaths()],
+                                   settings.DetectComics, settings.SuggestTagsOnImport, settings.AutoApplySuggestions);
         DialogResult = true;
     }
 }

@@ -2,7 +2,7 @@
            xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
            xmlns:hc="https://handyorg.github.io/handycontrol"
-           Title="Import images" Width="560" SizeToContent="Height" ResizeMode="NoResize"
+           Title="Import images" Width="600" SizeToContent="Height" ResizeMode="NoResize"
            WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{DynamicResource RegionBrush}">
     <StackPanel Margin="20">
         <TextBlock Text="Scan a folder or an entire drive. Already imported files are skipped unless they changed, and your tags are kept."
@@ -13,11 +13,38 @@
             <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Browse…" Click="Browse_Click" AutomationProperties.Name="Browse for folder" />
             <ComboBox x:Name="DriveBox" DockPanel.Dock="Right" Width="90" Margin="6,0,0,0" SelectionChanged="DriveBox_SelectionChanged"
                       hc:InfoElement.Placeholder="Drive" AutomationProperties.Name="Pick a whole drive" />
-            <hc:TextBox x:Name="PathBox" hc:InfoElement.Placeholder="C:\Users\me\Pictures" AutomationProperties.Name="Folder path" />
+            <hc:TextBox x:Name="PathBox" hc:InfoElement.Placeholder="C:\Users\me\Pictures" AutomationProperties.Name="Folder path"
+                        TextChanged="PathBox_TextChanged" />
         </DockPanel>
 
+        <TextBlock Text="Folders to scan" FontWeight="SemiBold" Margin="0,14,0,4" />
+        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4" Height="260">
+            <TreeView x:Name="FolderTree" ItemsSource="{Binding Roots}" BorderThickness="0" Background="Transparent"
+                      AutomationProperties.Name="Folders to scan" VirtualizingPanel.IsVirtualizing="True">
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem" BasedOn="{StaticResource TreeViewItemBaseStyle}">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    </Style>
+                </TreeView.ItemContainerStyle>
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" IsThreeState="False" IsEnabled="{Binding CanToggle}"
+                                  ToolTip="{Binding ToolTip}" Focusable="False" AutomationProperties.Name="{Binding Name}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Margin="2,0,6,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource PrimaryBrush}" />
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </CheckBox>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+        </Border>
+        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+
         <TextBlock Text="Skip folders named (separate with ;)" FontWeight="SemiBold" Margin="0,14,0,4" />
-        <TextBox x:Name="IgnoredBox" TextWrapping="Wrap" AcceptsReturn="False" AutomationProperties.Name="Folders to skip" />
+        <TextBox x:Name="IgnoredBox" TextWrapping="Wrap" AcceptsReturn="False" AutomationProperties.Name="Folders to skip"
+                 TextChanged="IgnoredBox_TextChanged" />
 
         <CheckBox x:Name="DetectComicsBox" Margin="0,16,0,0" Content="Group comic pages automatically (folders of numbered pages)" />
         <CheckBox x:Name="SuggestBox" Margin="0,8,0,0" Content="Suggest tags with AI for new images" Checked="SuggestBox_Changed" Unchecked="SuggestBox_Changed" />
