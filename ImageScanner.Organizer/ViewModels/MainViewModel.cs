@@ -807,7 +807,7 @@ public partial class MainViewModel : ObservableObject {
 
     [RelayCommand]
     private async Task ImportAsync() {
-        ImportWindow dialog = new(Settings, Plugins) { Owner = Owner };
+        ImportWindow dialog = new(Settings, Plugins, Library) { Owner = Owner };
         if (dialog.ShowDialog() == true && dialog.Result is ImportRequest request) {
             await RunImportAsync(request);
         }
