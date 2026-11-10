@@ -277,6 +277,13 @@
                                 <Border CornerRadius="4" Background="{DynamicResource SecondaryRegionBrush}" ClipToBounds="True">
                                     <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                                 </Border>
+                                <Border CornerRadius="8" Padding="5,2" Margin="4" HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="#CC000000"
+                                        ToolTip="Video" Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource IconText}" Text="&#xE768;" FontSize="10" Foreground="White" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding DurationText}" FontSize="11" Foreground="White" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
                                     <Border CornerRadius="8" Padding="4,2" Margin="2,0,0,0" Background="#CC7E57C2" ToolTip="AI suggestions waiting for review"
                                             Visibility="{Binding HasPendingSuggestions, Converter={StaticResource BoolToVisibility}}">

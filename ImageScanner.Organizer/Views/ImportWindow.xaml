@@ -11,8 +11,6 @@
         <TextBlock Text="Folder or drive" FontWeight="SemiBold" Margin="0,16,0,4" />
         <DockPanel>
             <Button DockPanel.Dock="Right" Margin="6,0,0,0" Content="Browse…" Click="Browse_Click" AutomationProperties.Name="Browse for folder" />
-            <ComboBox x:Name="DriveBox" DockPanel.Dock="Right" Width="90" Margin="6,0,0,0" SelectionChanged="DriveBox_SelectionChanged"
-                      hc:InfoElement.Placeholder="Drive" AutomationProperties.Name="Pick a whole drive" />
             <hc:TextBox x:Name="PathBox" hc:InfoElement.Placeholder="C:\Users\me\Pictures" AutomationProperties.Name="Folder path"
                         TextChanged="PathBox_TextChanged" />
         </DockPanel>

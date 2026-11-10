@@ -94,6 +94,8 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     public List<IImageAction> ImageActions { get; } = [];
     public List<IImportProcessor> ImportProcessors { get; } = [];
     public List<IPluginCommand> Commands { get; } = [];
+    public List<IMediaReader> MediaReaders { get; } = [];
+    public List<IMediaViewer> MediaViewers { get; } = [];
 
     public Func<IReadOnlyList<LibraryImage>> SelectionProvider { get; set; } = () => [];
     public Action<string> SearchHandler { get; set; } = _ => { };
@@ -319,6 +321,16 @@ public sealed class PluginManager(AppSettings settings) : IPluginHost {
     public void RegisterCommand(IPluginCommand command) {
         Commands.Add(command);
         initializing?.Features.Add($"Command: {command.Name}");
+    }
+
+    public void RegisterMediaReader(IMediaReader reader) {
+        MediaReaders.Add(reader);
+        initializing?.Features.Add($"File types: {string.Join(" ", reader.Extensions)}");
+    }
+
+    public void RegisterMediaViewer(IMediaViewer viewer) {
+        MediaViewers.Add(viewer);
+        initializing?.Features.Add($"Viewer: {viewer.Name}");
     }
 
     #endregion

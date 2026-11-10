@@ -5,7 +5,7 @@ namespace ImageScanner.Organizer.ViewModels;
 /// "is:" → "is:fav" … Each suggestion is the whole search text with that word completed, because picking one replaces the text.
 /// </summary>
 public static class SearchCompletion {
-    private static readonly string[] IsKeywords = ["fav", "untagged", "tagged", "comic", "pending", "uncategorized", "noartist"];
+    private static readonly string[] IsKeywords = ["fav", "untagged", "tagged", "comic", "pending", "uncategorized", "noartist", "video", "image"];
     private static readonly string[] Keywords = ["tag:", "artist:", "cat:", "is:", "rating>="];
 
     public static List<string> Suggest(string text, IEnumerable<string> tags, IEnumerable<string> artists, IEnumerable<string> categories, int max = 12) {
