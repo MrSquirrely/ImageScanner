@@ -39,6 +39,23 @@ public class LibraryImage {
     public string? CameraModel { get; set; }
     public string? ThumbnailId { get; set; }
 
+    // Set for files imported through a plugin's media reader (videos)
+    public bool IsVideo { get; set; }
+    public double? DurationSeconds { get; set; }
+
+    /// <summary>"1:05" or "1:02:03"; empty for still images.</summary>
+    [BsonIgnore]
+    public string DurationText {
+        get {
+            if (DurationSeconds is not double seconds) {
+                return string.Empty;
+            }
+
+            TimeSpan duration = TimeSpan.FromSeconds(Math.Round(seconds));
+            return (duration.TotalHours >= 1) ? duration.ToString(@"h\:mm\:ss") : duration.ToString(@"m\:ss");
+        }
+    }
+
     [BsonIgnore]
     public bool HasPendingSuggestions => SuggestedTags.Count > 0 || SuggestedArtists.Count > 0 || !string.IsNullOrEmpty(SuggestedCategory);
 

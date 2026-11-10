@@ -9,4 +9,6 @@
   <Project Path="ImageScanner.Plugins.Duplicates/ImageScanner.Plugins.Duplicates.csproj" />
   <Project Path="ImageScanner.Plugins.LocalTagger/ImageScanner.Plugins.LocalTagger.csproj" />
   <Project Path="ImageScanner.Plugins.ScheduledRescan/ImageScanner.Plugins.ScheduledRescan.csproj" />
+  <Project Path="ImageScanner.Plugins.Videos/ImageScanner.Plugins.Videos.csproj" />
+  <Project Path="ImageScanner.Plugins.Viewer/ImageScanner.Plugins.Viewer.csproj" />
 </Solution>

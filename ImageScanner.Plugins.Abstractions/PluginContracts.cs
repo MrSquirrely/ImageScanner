@@ -110,6 +110,34 @@ public interface IPluginHost {
     void RegisterImageAction(IImageAction action);
     void RegisterImportProcessor(IImportProcessor processor);
     void RegisterCommand(IPluginCommand command);
+
+    /// <summary>
+    /// Adds file types to imports and rescans (videos, for example). Files of those types show up in the library
+    /// like images, with the thumbnail, size and duration the reader returns.
+    /// </summary>
+    void RegisterMediaReader(IMediaReader reader);
+
+    /// <summary>
+    /// Replaces the built-in viewer for the items the viewer accepts. With several viewers, the first one
+    /// registered that accepts the item opens it.
+    /// </summary>
+    void RegisterMediaViewer(IMediaViewer viewer);
+}
+
+/// <summary>
+/// Opens library items when the user double-clicks one or presses Enter, instead of the built-in viewer.
+/// </summary>
+public interface IMediaViewer {
+    string Name { get; }
+
+    /// <summary>False hands the item to the next viewer, or to the built-in one.</summary>
+    bool CanView(LibraryImage item) => true;
+
+    /// <summary>
+    /// Shows <paramref name="items"/>[<paramref name="startIndex"/>]. The list is what the gallery shows right now,
+    /// in order, for next and previous. Called on the UI thread.
+    /// </summary>
+    void Show(IReadOnlyList<LibraryImage> items, int startIndex);
 }
 
 /// <summary>

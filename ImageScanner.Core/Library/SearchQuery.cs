@@ -13,7 +13,7 @@ namespace ImageScanner.Core.Library;
 ///   ext:png                 file extension
 ///   folder:Downloads        folder path contains text
 ///   rating>=3 rating:5      rating comparisons
-///   is:fav is:untagged is:comic is:pending is:uncategorized is:noartist
+///   is:fav is:untagged is:comic is:pending is:uncategorized is:noartist is:video is:image
 /// </code>
 /// </summary>
 public class SearchQuery {
@@ -96,6 +96,8 @@ public class SearchQuery {
                 "tagged" => (image, _) => image.Tags.Count > 0,
                 "comic" => (image, _) => image.ComicId != null,
                 "pending" => (image, _) => image.HasPendingSuggestions,
+                "video" => (image, _) => image.IsVideo,
+                "image" => (image, _) => !image.IsVideo,
                 "uncategorized" or "uncategorised" => (image, _) => string.IsNullOrEmpty(image.Category),
                 _ => null
             },

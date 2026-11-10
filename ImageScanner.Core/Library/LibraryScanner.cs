@@ -10,6 +10,9 @@ public class ScanOptions {
     public int MinimumComicPages { get; init; } = 3;
     public int ThumbnailSize { get; init; } = 256;
     public int MaxParallelism { get; init; } = Math.Max(1, Environment.ProcessorCount - 1);
+
+    /// <summary>Readers for file types beyond the built-in image formats (registered by plugins, e.g. videos).</summary>
+    public IReadOnlyCollection<IMediaReader> MediaReaders { get; init; } = [];
 }
 
 public record ScanProgress(string Phase, int Processed, int Total, string? CurrentFile = null);
@@ -34,7 +37,18 @@ public class LibraryScanner(ImageLibrary library) {
         }
 
         progress?.Report(new ScanProgress("Finding images", 0, 0));
-        List<string> files = await Task.Run(() => EnumerateImages(root, options.IgnoredFolders, cancellationToken), cancellationToken);
+        Dictionary<string, IMediaReader> readers = new(StringComparer.OrdinalIgnoreCase);
+        foreach (IMediaReader reader in options.MediaReaders) {
+            foreach (string extension in reader.Extensions) {
+                // The built-in image formats stay with the built-in decoder
+                if (!ImageProcessing.SupportedExtensions.Contains(extension)) {
+                    readers.TryAdd(extension, reader);
+                }
+            }
+        }
+
+        HashSet<string> extensions = new(ImageProcessing.SupportedExtensions.Concat(readers.Keys), StringComparer.OrdinalIgnoreCase);
+        List<string> files = await Task.Run(() => EnumerateImages(root, options.IgnoredFolders, extensions, cancellationToken), cancellationToken);
 
         HashSet<string> seen = new(files, StringComparer.OrdinalIgnoreCase);
         List<(string Path, LibraryImage? Existing)> work = [];
@@ -78,7 +92,22 @@ public class LibraryScanner(ImageLibrary library) {
         }, (item, _) => {
             try {
                 FileInfo info = new(item.Path);
-                (int width, int height, string? maker, string? model, byte[] thumbnail) = ImageProcessing.ReadForLibrary(item.Path, options.ThumbnailSize);
+                int width;
+                int height;
+                string? maker = null;
+                string? model = null;
+                byte[] thumbnail;
+                bool isVideo = false;
+                double? duration = null;
+                if (readers.TryGetValue(info.Extension, out IMediaReader? reader)) {
+                    MediaInfo media = reader.Read(item.Path, options.ThumbnailSize);
+                    (width, height, thumbnail) = (media.Width, media.Height, media.Thumbnail);
+                    isVideo = reader.IsVideo;
+                    duration = media.Duration?.TotalSeconds;
+                }
+                else {
+                    (width, height, maker, model, thumbnail) = ImageProcessing.ReadForLibrary(item.Path, options.ThumbnailSize);
+                }
 
                 LibraryImage image = item.Existing ?? new LibraryImage {
                     FilePath = item.Path,
@@ -94,6 +123,8 @@ public class LibraryScanner(ImageLibrary library) {
                 image.Height = height;
                 image.CameraMaker = maker;
                 image.CameraModel = model;
+                image.IsVideo = isVideo;
+                image.DurationSeconds = duration;
 
                 bool flushNow;
                 lock (batchLock) {
@@ -131,7 +162,9 @@ public class LibraryScanner(ImageLibrary library) {
             progress?.Report(new ScanProgress("Removing missing files", work.Count, work.Count));
             string prefix = root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
             List<int> missing = [.. library.GetAllImages()
-                                           .Where(image => image.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && !seen.Contains(image.FilePath))
+                                           // A type nobody reads right now (its plugin is off) isn't "missing": keep it and its tags
+                                           .Where(image => image.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && !seen.Contains(image.FilePath)
+                                                           && (extensions.Contains(image.Extension) || !File.Exists(image.FilePath)))
                                            .Select(image => image.Id)];
             if (missing.Count > 0) {
                 library.DeleteImages(missing);
@@ -149,6 +182,7 @@ public class LibraryScanner(ImageLibrary library) {
             HashSet<string> dismissed = new(library.GetSources().SelectMany(existing => existing.DismissedComicFolders), StringComparer.OrdinalIgnoreCase);
             IEnumerable<LibraryImage> candidatesPool = library.GetAllImages()
                                                               .Where(image => image.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                                                                              && !image.IsVideo
                                                                               && !dismissed.Contains(image.Folder));
             comicsCreated = library.CreateDetectedComics(ComicDetector.FindCandidates(candidatesPool, options.MinimumComicPages));
         }
@@ -162,7 +196,7 @@ public class LibraryScanner(ImageLibrary library) {
         return new ScanResult(newImages.Count, updated, removed, failed, comicsCreated, newImages);
     }
 
-    private static List<string> EnumerateImages(string root, IReadOnlyCollection<string> ignoredFolders, CancellationToken cancellationToken) {
+    private static List<string> EnumerateImages(string root, IReadOnlyCollection<string> ignoredFolders, HashSet<string> extensions, CancellationToken cancellationToken) {
         HashSet<string> ignored = new(ignoredFolders, StringComparer.OrdinalIgnoreCase);
         EnumerationOptions options = new() {
             IgnoreInaccessible = true,
@@ -173,7 +207,7 @@ public class LibraryScanner(ImageLibrary library) {
         FileSystemEnumerable<string> enumerable = new(root, (ref FileSystemEntry entry) => entry.ToFullPath(), options) {
             ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory
                                                                     && (entry.Attributes & CloudOnlyAttributes) == 0
-                                                                    && ImageProcessing.SupportedExtensions.Contains(Path.GetExtension(entry.FileName).ToString()),
+                                                                    && extensions.Contains(Path.GetExtension(entry.FileName).ToString()),
             ShouldRecursePredicate = (ref FileSystemEntry entry) => !ignored.Contains(entry.FileName.ToString())
                                                                     && !ignored.Contains(entry.ToFullPath())
         };

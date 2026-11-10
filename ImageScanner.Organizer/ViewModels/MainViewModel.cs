@@ -467,7 +467,8 @@ public partial class MainViewModel : ObservableObject {
         int version = ++previewVersion;
         LibraryImage? image = Current?.Model;
         Preview = Current?.Thumbnail;
-        if (image == null) {
+        // Videos keep their thumbnail as the preview: there's no still image to decode
+        if ((image == null) || image.IsVideo) {
             return;
         }
 
@@ -594,6 +595,12 @@ public partial class MainViewModel : ObservableObject {
     /// several folders produces one progress bar rather than a refused second job.
     /// </summary>
     private async Task QueueAiTaggingAsync(IReadOnlyList<LibraryImage> images, bool autoApply) {
+        // The taggers look at still images; a video has nothing they can decode
+        images = [.. images.Where(image => !image.IsVideo)];
+        if (images.Count == 0) {
+            return;
+        }
+
         aiQueue.Enqueue(([.. images], autoApply));
         if (IsAiBusy) {
             aiTotal += images.Count;
@@ -870,7 +877,8 @@ public partial class MainViewModel : ObservableObject {
         ScanResult result = await new LibraryScanner(Library).ScanAsync(new ScanOptions {
             RootPath = request.RootPath,
             IgnoredFolders = request.IgnoredFolders,
-            DetectComics = request.DetectComics
+            DetectComics = request.DetectComics,
+            MediaReaders = Plugins.MediaReaders
         }, scanProgress, token);
         RefreshAll();
 
@@ -905,8 +913,26 @@ public partial class MainViewModel : ObservableObject {
         item ??= Current;
         if (item == null) return;
 
-        if (Settings.UseSystemViewer) {
+        // A viewer plugin that accepts the item takes over from the built-in viewer and the Windows default app
+        if (Plugins.MediaViewers.FirstOrDefault(viewer => viewer.CanView(item.Model)) is IMediaViewer pluginViewer) {
+            List<LibraryImage> all = [.. Images.Select(image => image.Model)];
+            try {
+                pluginViewer.Show(all, Math.Max(0, all.IndexOf(item.Model)));
+                return;
+            }
+            catch (Exception exception) {
+                Growl.Warning($"{pluginViewer.Name} couldn't open {item.FileName}: {exception.Message}");
+            }
+        }
+
+        // The built-in viewer only shows still images
+        if (Settings.UseSystemViewer || item.Model.IsVideo) {
             if (ShellLauncher.TryOpenWithDefaultApp(item.Model.FilePath, out string? error)) {
+                return;
+            }
+
+            if (item.Model.IsVideo) {
+                Growl.Warning($"{error} Install a viewer plugin that plays videos from Settings → Marketplace.");
                 return;
             }
 
@@ -914,7 +940,7 @@ public partial class MainViewModel : ObservableObject {
             Growl.Warning($"{error} Showing it in the built-in viewer instead.");
         }
 
-        List<LibraryImage> images = [.. Images.Select(image => image.Model)];
+        List<LibraryImage> images = [.. Images.Where(image => !image.Model.IsVideo).Select(image => image.Model)];
         new ImageViewerWindow(images, Math.Max(0, images.IndexOf(item.Model))) { Owner = Owner }.Show();
     }
 

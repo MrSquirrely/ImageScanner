@@ -29,7 +29,6 @@ public partial class ImportWindow {
             await ReloadFoldersAsync();
         };
 
-        DriveBox.ItemsSource = DriveInfo.GetDrives().Where(drive => drive.IsReady).Select(drive => drive.Name).ToList();
         IgnoredBox.Text = settings.IgnoredFolders;
         DetectComicsBox.IsChecked = settings.DetectComics;
         SuggestBox.IsChecked = settings.SuggestTagsOnImport;
@@ -53,12 +52,6 @@ public partial class ImportWindow {
         Microsoft.Win32.OpenFolderDialog dialog = new() { Title = "Choose a folder to import" };
         if (dialog.ShowDialog(this) == true) {
             PathBox.Text = dialog.FolderName;
-        }
-    }
-
-    private void DriveBox_SelectionChanged(object sender, SelectionChangedEventArgs e) {
-        if (DriveBox.SelectedItem is string drive) {
-            PathBox.Text = drive;
         }
     }
 

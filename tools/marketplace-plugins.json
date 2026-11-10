@@ -45,6 +45,24 @@
       "category": "other-plugins",
       "title": "Scheduled rescan",
       "description": "Rescans your imported folders on a schedule (every 15 minutes up to once a day), so new, changed and deleted images show up without pressing Rescan.\n\nThe interval counts from the last scan, including ones you start yourself, and a rescan only reads files that are new or changed. It waits while PixShelf is busy with another task, skips folders on drives that aren't connected, and by default only shows a notification when something changed. Needs PixShelf 1.1 or later."
+    },
+    {
+      "project": "ImageScanner.Plugins.Videos",
+      "id": "pixshelf.videos",
+      "name": "Video tracking",
+      "version": "1.0",
+      "category": "import-plugins",
+      "title": "Video tracking",
+      "description": "Adds videos to your library. Imports and rescans pick up video files (mp4, mkv, webm, mov, avi, wmv and more; the list is editable) next to your images, with a thumbnail, the frame size and the running time, so you can tag, rate, categorize and search them like images. Find them with is:video.\n\nThumbnails and details come from Windows, so no extra codecs are bundled. PixShelf's built-in viewer only shows still images: videos open in your default player, or inside PixShelf with the Media viewer plugin. Needs PixShelf 1.2 or later."
+    },
+    {
+      "project": "ImageScanner.Plugins.Viewer",
+      "id": "pixshelf.viewer",
+      "name": "Media viewer",
+      "version": "1.0",
+      "category": "other-plugins",
+      "title": "Media viewer (animated GIFs and videos)",
+      "description": "A better viewer that replaces the built-in one: zoom with the mouse wheel, drag to pan, rotate, full screen and slideshow. Plays animated GIF, WebP and PNG files, and plays videos with seek, volume, mute and loop.\n\nKeys: Left/Right for previous and next, Space to play or pause, Shift+Left/Right to skip 5 seconds, + and - to zoom, 0 to fit, 1 for actual size, R to rotate, S for slideshow, F11 for full screen. Videos play with the codecs Windows has; pair it with the Video tracking plugin to get videos into your library. Needs PixShelf 1.2 or later."
     }
   ]
 }

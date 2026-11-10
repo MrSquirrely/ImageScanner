@@ -22,6 +22,8 @@ public partial class ImageItemViewModel(LibraryImage model, ImageLoader loader) 
     public bool IsFavorite => Model.IsFavorite;
     public bool HasPendingSuggestions => Model.HasPendingSuggestions;
     public bool IsComicPage => Model.ComicId != null;
+    public bool IsVideo => Model.IsVideo;
+    public string DurationText => Model.DurationText;
     public int Rating => Model.Rating;
     public string TagSummary => Model.Tags.Count == 0 ? "No tags" : string.Join(", ", Model.Tags);
 
